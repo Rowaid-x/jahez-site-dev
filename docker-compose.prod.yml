@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-jahez_db}
+      POSTGRES_USER: ${DB_USER:-jahez_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jahez_user} -d ${DB_NAME:-jahez_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: ./backend
+    restart: always
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py seed_data &&
+             gunicorn jahez.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    volumes:
+      - static_files:/app/staticfiles
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_DEBUG=False
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-72.62.74.227,localhost,127.0.0.1}
+      - DB_NAME=${DB_NAME:-jahez_db}
+      - DB_USER=${DB_USER:-jahez_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://72.62.74.227}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend_net
+
+  frontend:
+    build: ./frontend
+    restart: always
+    volumes:
+      - frontend_build:/usr/share/nginx/html
+    networks:
+      - frontend_net
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - static_files:/app/staticfiles
+      - frontend_build:/usr/share/nginx/html
+    depends_on:
+      - web
+      - frontend
+    networks:
+      - backend_net
+      - frontend_net
+
+volumes:
+  postgres_data:
+  static_files:
+  frontend_build:
+
+networks:
+  backend_net:
+  frontend_net:
