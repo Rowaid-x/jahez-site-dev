@@ -234,6 +234,55 @@ def dashboard(request):
     ).select_related('project__student').order_by('due_date')[:5]
     upcoming_data = PaymentSerializer(upcoming, many=True).data
 
+    # --- Private Classes stats ---
+    org_classes = PrivateClass.objects.filter(organization=org)
+    total_classes = org_classes.count()
+    classes_student_revenue_qar = 0
+    classes_teacher_cost_qar = 0
+    classes_profit_qar = 0
+    for pc in org_classes:
+        classes_student_revenue_qar += pc.student_total_qar
+        classes_teacher_cost_qar += pc.teacher_total_qar
+        classes_profit_qar += pc.profit
+    classes_student_unpaid = org_classes.filter(student_payment_status='pending').count()
+    classes_teacher_unpaid = org_classes.filter(teacher_payment_status='pending').count()
+
+    # Class payments collected
+    classes_collected_qar = float(
+        ClassPayment.objects.filter(organization=org).aggregate(total=Sum('amount_qar'))['total'] or 0
+    )
+    classes_outstanding_qar = round(classes_student_revenue_qar - classes_collected_qar, 2)
+
+    # Monthly class payments for chart
+    monthly_class_data = (
+        ClassPayment.objects.filter(organization=org)
+        .annotate(month=TruncMonth('paid_date'))
+        .values('month')
+        .annotate(total=Sum('amount_qar'))
+        .order_by('month')
+    )
+    monthly_class_collections = [
+        {'month': item['month'].strftime('%b %Y') if item['month'] else 'Unknown', 'total': float(item['total'])}
+        for item in monthly_class_data if item['month']
+    ]
+
+    # Recent class payments
+    recent_class_payments = ClassPayment.objects.filter(
+        organization=org,
+    ).select_related('student').order_by('-paid_date', '-created_at')[:10]
+    recent_class_data = [
+        {
+            'id': cp.id,
+            'student_name': cp.student.name,
+            'amount': float(cp.amount),
+            'currency': cp.currency,
+            'amount_qar': float(cp.amount_qar),
+            'paid_date': str(cp.paid_date),
+            'classes_count': cp.classes.count(),
+        }
+        for cp in recent_class_payments
+    ]
+
     return Response({
         'total_students': total_students,
         'total_teachers': total_teachers,
@@ -246,6 +295,17 @@ def dashboard(request):
         'recent_payments': recent_data,
         'upcoming_dues': upcoming_data,
         'collection_rate': round(float(total_collected) / float(total_revenue) * 100, 1) if total_revenue else 0,
+        # Private classes
+        'total_classes': total_classes,
+        'classes_student_revenue': round(classes_student_revenue_qar, 2),
+        'classes_teacher_cost': round(classes_teacher_cost_qar, 2),
+        'classes_profit': round(classes_profit_qar, 2),
+        'classes_collected': classes_collected_qar,
+        'classes_outstanding': classes_outstanding_qar,
+        'classes_student_unpaid': classes_student_unpaid,
+        'classes_teacher_unpaid': classes_teacher_unpaid,
+        'monthly_class_collections': monthly_class_collections,
+        'recent_class_payments': recent_class_data,
     })
 
 
