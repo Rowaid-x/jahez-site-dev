@@ -8,6 +8,7 @@ router.register(r'students', views.StudentViewSet)
 router.register(r'teachers', views.TeacherViewSet)
 router.register(r'projects', views.ProjectViewSet)
 router.register(r'payments', views.PaymentViewSet)
+router.register(r'private-classes', views.PrivateClassViewSet)
 
 urlpatterns = [
     # Manual routes first (before router to avoid conflicts)

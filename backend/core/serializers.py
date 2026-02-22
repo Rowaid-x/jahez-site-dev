@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Teacher, Project, Payment, CURRENCY_CHOICES, CURRENCY_RATES
+from .models import Student, Teacher, Project, Payment, PrivateClass, CURRENCY_CHOICES, CURRENCY_RATES
 from django.db.models import Sum, Count, Q
 from decimal import Decimal
 
@@ -217,3 +217,44 @@ class RecordPaymentSerializer(serializers.Serializer):
 class PreviewPaymentSerializer(serializers.Serializer):
     project_id = serializers.IntegerField()
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+
+
+class PrivateClassListSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    teacher_name = serializers.CharField(source='teacher.name', read_only=True)
+    student_total = serializers.SerializerMethodField()
+    teacher_total = serializers.SerializerMethodField()
+    profit = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrivateClass
+        fields = [
+            'id', 'student', 'student_name', 'teacher', 'teacher_name',
+            'date', 'duration', 'subject',
+            'student_hourly_rate', 'teacher_hourly_rate',
+            'student_total', 'teacher_total', 'profit',
+            'student_payment_status', 'student_paid_date',
+            'teacher_payment_status', 'teacher_paid_date',
+            'notes', 'created_at',
+        ]
+
+    def get_student_total(self, obj):
+        return obj.student_total
+
+    def get_teacher_total(self, obj):
+        return obj.teacher_total
+
+    def get_profit(self, obj):
+        return obj.profit
+
+
+class PrivateClassCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrivateClass
+        fields = [
+            'id', 'student', 'teacher', 'date', 'duration', 'subject',
+            'student_hourly_rate', 'teacher_hourly_rate',
+            'student_payment_status', 'student_paid_date',
+            'teacher_payment_status', 'teacher_paid_date',
+            'notes',
+        ]

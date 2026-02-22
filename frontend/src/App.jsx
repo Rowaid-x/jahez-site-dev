@@ -9,6 +9,7 @@ import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
 import Payments from './pages/Payments'
 import Reports from './pages/Reports'
+import PrivateClasses from './pages/PrivateClasses'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/:id" element={<ProjectDetail />} />
                 <Route path="/payments" element={<Payments />} />
+                <Route path="/classes" element={<PrivateClasses />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

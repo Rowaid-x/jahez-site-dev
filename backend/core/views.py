@@ -7,13 +7,14 @@ from django.utils import timezone
 from datetime import date
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Student, Teacher, Project, Payment, CURRENCY_CHOICES, CURRENCY_RATES
+from .models import Student, Teacher, Project, Payment, PrivateClass, CURRENCY_CHOICES, CURRENCY_RATES
 from .serializers import (
     StudentSerializer, StudentDetailSerializer, StudentCreateSerializer,
     TeacherSerializer, TeacherDetailSerializer, TeacherCreateSerializer,
     ProjectListSerializer, ProjectDetailSerializer, ProjectCreateSerializer,
     PaymentSerializer, PaymentUpdateSerializer,
     RecordPaymentSerializer, PreviewPaymentSerializer,
+    PrivateClassListSerializer, PrivateClassCreateSerializer,
 )
 from .payment_logic import (
     generate_installments, regenerate_installments,
@@ -238,6 +239,53 @@ def dashboard(request):
         'upcoming_dues': upcoming_data,
         'collection_rate': round(float(total_collected) / float(total_revenue) * 100, 1) if total_revenue else 0,
     })
+
+
+class PrivateClassViewSet(viewsets.ModelViewSet):
+    queryset = PrivateClass.objects.select_related('student', 'teacher').all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['student', 'teacher', 'student_payment_status', 'teacher_payment_status']
+    search_fields = ['student__name', 'teacher__name', 'subject']
+    ordering_fields = ['date', 'created_at']
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return PrivateClassCreateSerializer
+        return PrivateClassListSerializer
+
+    @action(detail=True, methods=['post'])
+    def mark_student_paid(self, request, pk=None):
+        obj = self.get_object()
+        paid_date = request.data.get('paid_date', str(date.today()))
+        obj.student_payment_status = 'paid'
+        obj.student_paid_date = paid_date
+        obj.save()
+        return Response({'status': 'Student payment marked as paid', 'paid_date': paid_date})
+
+    @action(detail=True, methods=['post'])
+    def mark_student_unpaid(self, request, pk=None):
+        obj = self.get_object()
+        obj.student_payment_status = 'pending'
+        obj.student_paid_date = None
+        obj.save()
+        return Response({'status': 'Student payment marked as unpaid'})
+
+    @action(detail=True, methods=['post'])
+    def mark_teacher_paid(self, request, pk=None):
+        obj = self.get_object()
+        paid_date = request.data.get('paid_date', str(date.today()))
+        obj.teacher_payment_status = 'paid'
+        obj.teacher_paid_date = paid_date
+        obj.save()
+        return Response({'status': 'Teacher payment marked as paid', 'paid_date': paid_date})
+
+    @action(detail=True, methods=['post'])
+    def mark_teacher_unpaid(self, request, pk=None):
+        obj = self.get_object()
+        obj.teacher_payment_status = 'pending'
+        obj.teacher_paid_date = None
+        obj.save()
+        return Response({'status': 'Teacher payment marked as unpaid'})
 
 
 @api_view(['GET'])

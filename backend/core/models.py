@@ -123,6 +123,61 @@ class Project(models.Model):
         return 'on_track'
 
 
+DURATION_CHOICES = [
+    (1.0, '1 Hour'),
+    (1.5, '1.5 Hours'),
+    (2.0, '2 Hours'),
+    (2.5, '2.5 Hours'),
+    (3.0, '3 Hours'),
+]
+
+
+class PrivateClass(models.Model):
+    STUDENT_PAYMENT_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+    ]
+    TEACHER_PAYMENT_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+    ]
+
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='private_classes')
+    teacher = models.ForeignKey(Teacher, on_delete=models.PROTECT, related_name='private_classes')
+    date = models.DateField()
+    duration = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0.5)],
+                                   help_text='Duration in hours (e.g. 1.0, 1.5, 2.0)')
+    student_hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0.01)],
+                                              help_text='Rate charged to student per hour (QAR)')
+    teacher_hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0.01)],
+                                              help_text='Rate paid to teacher per hour (QAR)')
+    student_payment_status = models.CharField(max_length=20, choices=STUDENT_PAYMENT_CHOICES, default='pending')
+    student_paid_date = models.DateField(null=True, blank=True)
+    teacher_payment_status = models.CharField(max_length=20, choices=TEACHER_PAYMENT_CHOICES, default='pending')
+    teacher_paid_date = models.DateField(null=True, blank=True)
+    subject = models.CharField(max_length=255, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+
+    def __str__(self):
+        return f"{self.student.name} - {self.teacher.name} - {self.date}"
+
+    @property
+    def student_total(self):
+        return float(self.student_hourly_rate) * float(self.duration)
+
+    @property
+    def teacher_total(self):
+        return float(self.teacher_hourly_rate) * float(self.duration)
+
+    @property
+    def profit(self):
+        return self.student_total - self.teacher_total
+
+
 class Payment(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),

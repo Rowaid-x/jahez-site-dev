@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   LayoutDashboard, Users, GraduationCap, FolderKanban,
-  CreditCard, FileBarChart, LogOut, Menu, X
+  CreditCard, Clock, FileBarChart, LogOut, Menu, X
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/teachers', icon: GraduationCap, label: 'Teachers' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/payments', icon: CreditCard, label: 'Payments' },
+  { to: '/classes', icon: Clock, label: 'Private Classes' },
   { to: '/reports', icon: FileBarChart, label: 'Reports' },
 ]
 
