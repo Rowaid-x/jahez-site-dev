@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Teacher, Project, Payment, PrivateClass, CURRENCY_CHOICES, CURRENCY_RATES
+from .models import Student, Teacher, Project, Payment, PrivateClass, ClassPayment, CURRENCY_CHOICES, CURRENCY_RATES
 from django.db.models import Sum, Count, Q
 from decimal import Decimal
 
@@ -286,3 +286,37 @@ class PrivateClassCreateSerializer(serializers.ModelSerializer):
             'teacher_payment_status', 'teacher_paid_date',
             'notes',
         ]
+
+
+class ClassPaymentListSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    classes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClassPayment
+        fields = [
+            'id', 'student', 'student_name', 'amount', 'currency', 'amount_qar',
+            'paid_date', 'payment_method', 'receipt_number', 'notes',
+            'classes', 'classes_count', 'created_at',
+        ]
+
+    def get_classes_count(self, obj):
+        return obj.classes.count()
+
+
+class ClassPaymentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClassPayment
+        fields = [
+            'id', 'student', 'amount', 'currency', 'amount_qar',
+            'paid_date', 'payment_method', 'receipt_number', 'notes',
+            'classes',
+        ]
+
+    def validate(self, data):
+        # Auto-calculate amount_qar if not provided
+        if not data.get('amount_qar'):
+            currency = data.get('currency', 'QAR')
+            rate = CURRENCY_RATES.get(currency, 1.0)
+            data['amount_qar'] = round(float(data['amount']) * rate, 2)
+        return data

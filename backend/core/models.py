@@ -224,6 +224,35 @@ class PrivateClass(models.Model):
         return round(self.student_total_qar - self.teacher_total_qar, 2)
 
 
+class ClassPayment(models.Model):
+    """Payment made by a student for private class sessions."""
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='class_payments', null=True)
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='class_payments')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0.01)])
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='QAR')
+    amount_qar = models.DecimalField(max_digits=12, decimal_places=2,
+                                      help_text='Amount in QAR (auto-calculated)')
+    paid_date = models.DateField()
+    payment_method = models.CharField(max_length=50, blank=True, default='')
+    receipt_number = models.CharField(max_length=100, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    classes = models.ManyToManyField(PrivateClass, blank=True, related_name='class_payments',
+                                     help_text='Classes covered by this payment')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-paid_date', '-created_at']
+
+    def __str__(self):
+        return f"{self.student.name} - {self.amount} {self.currency} - {self.paid_date}"
+
+    def save(self, *args, **kwargs):
+        if not self.amount_qar:
+            rate = CURRENCY_RATES.get(self.currency, 1.0)
+            self.amount_qar = round(float(self.amount) * rate, 2)
+        super().save(*args, **kwargs)
+
+
 class Payment(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),

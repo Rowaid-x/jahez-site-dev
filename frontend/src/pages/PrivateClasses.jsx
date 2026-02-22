@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Edit, Trash2, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Clock, CheckCircle, XCircle, DollarSign } from 'lucide-react'
 import client from '../api/client'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
@@ -35,6 +35,12 @@ export default function PrivateClasses() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [statusFilter, setStatusFilter] = useState('')
+  const [payModalOpen, setPayModalOpen] = useState(false)
+  const [classPayments, setClassPayments] = useState([])
+  const [payForm, setPayForm] = useState({
+    student: '', amount: '', currency: 'QAR', paid_date: '',
+    payment_method: '', receipt_number: '', notes: '', classes: [],
+  })
   const [form, setForm] = useState({
     student: '', teacher: '', date: '', duration: '1.0', subject: '',
     student_hourly_rate: '', student_currency: 'QAR',
@@ -63,8 +69,14 @@ export default function PrivateClasses() {
     }).catch(console.error)
   }
 
+  const fetchClassPayments = () => {
+    client.get('/class-payments/')
+      .then(res => setClassPayments(res.data.results || res.data))
+      .catch(() => {})
+  }
+
   useEffect(() => { fetchClasses() }, [search, statusFilter])
-  useEffect(() => { fetchDropdowns() }, [])
+  useEffect(() => { fetchDropdowns(); fetchClassPayments() }, [])
 
   const getDefaultDate = () => new Date().toISOString().split('T')[0]
 
@@ -179,6 +191,65 @@ export default function PrivateClasses() {
   const totalProfit = classes.reduce((s, c) => s + (c.profit || 0), 0)
   const unpaidStudentCount = classes.filter(c => c.student_payment_status === 'pending').length
   const unpaidTeacherCount = classes.filter(c => c.teacher_payment_status === 'pending').length
+  const totalClassPayments = classPayments.reduce((s, p) => s + (p.amount_qar || 0), 0)
+  const studentOwed = totalStudentRevenue - totalClassPayments
+
+  const openPayModal = (studentId) => {
+    const unpaidClasses = classes.filter(c => c.student_payment_status === 'pending' && (!studentId || c.student === studentId))
+    setPayForm({
+      student: studentId || '',
+      amount: '',
+      currency: 'QAR',
+      paid_date: new Date().toISOString().split('T')[0],
+      payment_method: '',
+      receipt_number: '',
+      notes: '',
+      classes: unpaidClasses.map(c => c.id),
+    })
+    setPayModalOpen(true)
+  }
+
+  const handlePaySave = async () => {
+    if (!payForm.student || !payForm.amount || !payForm.paid_date) {
+      toast.error('Please fill student, amount, and date')
+      return
+    }
+    try {
+      const rate = CURRENCY_RATES[payForm.currency] || 1
+      await client.post('/class-payments/', {
+        student: Number(payForm.student),
+        amount: Number(payForm.amount),
+        currency: payForm.currency,
+        amount_qar: payForm.currency === 'QAR' ? Number(payForm.amount) : Math.round(Number(payForm.amount) * rate * 100) / 100,
+        paid_date: payForm.paid_date,
+        payment_method: payForm.payment_method,
+        receipt_number: payForm.receipt_number,
+        notes: payForm.notes,
+        classes: payForm.classes,
+      })
+      toast.success('Payment recorded')
+      setPayModalOpen(false)
+      fetchClassPayments()
+      // Mark selected classes as paid
+      for (const classId of payForm.classes) {
+        try { await client.post(`/private-classes/${classId}/mark_student_paid/`) } catch {}
+      }
+      fetchClasses()
+    } catch (err) {
+      const errData = err.response?.data
+      const msg = errData?.detail || Object.values(errData || {})?.[0]?.[0] || 'Failed to record payment'
+      toast.error(msg)
+    }
+  }
+
+  const handleDeletePayment = async (p) => {
+    if (!confirm('Delete this payment record?')) return
+    try {
+      await client.delete(`/class-payments/${p.id}/`)
+      toast.success('Payment deleted')
+      fetchClassPayments()
+    } catch { toast.error('Failed to delete payment') }
+  }
 
   const computedTotal = form.student_hourly_rate && form.duration
     ? (Number(form.student_hourly_rate) * Number(form.duration))
@@ -191,20 +262,33 @@ export default function PrivateClasses() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-dark-100">Private Classes</h1>
-        <button onClick={openCreate} className="btn-primary">
-          <Plus size={18} /> Add Class
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => openPayModal()} className="btn-success">
+            <DollarSign size={18} /> Record Payment
+          </button>
+          <button onClick={openCreate} className="btn-primary">
+            <Plus size={18} /> Add Class
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div className="stat-card">
           <span className="text-xs text-dark-400">Total Sessions</span>
           <span className="text-lg font-bold text-dark-100">{classes.length}</span>
         </div>
         <div className="stat-card">
-          <span className="text-xs text-dark-400">Student Revenue</span>
+          <span className="text-xs text-dark-400">Student Owed</span>
           <span className="text-lg font-bold text-emerald-400">{formatCurrency(totalStudentRevenue)}</span>
+        </div>
+        <div className="stat-card">
+          <span className="text-xs text-dark-400">Collected</span>
+          <span className="text-lg font-bold text-emerald-400">{formatCurrency(totalClassPayments)}</span>
+        </div>
+        <div className="stat-card">
+          <span className="text-xs text-dark-400">Outstanding</span>
+          <span className={`text-lg font-bold ${studentOwed > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatCurrency(studentOwed)}</span>
         </div>
         <div className="stat-card">
           <span className="text-xs text-dark-400">Teacher Cost</span>
@@ -213,10 +297,6 @@ export default function PrivateClasses() {
         <div className="stat-card">
           <span className="text-xs text-dark-400">Profit</span>
           <span className="text-lg font-bold text-brand-400">{formatCurrency(totalProfit)}</span>
-        </div>
-        <div className="stat-card">
-          <span className="text-xs text-dark-400">Unpaid</span>
-          <span className="text-lg font-bold text-red-400">{unpaidStudentCount} student / {unpaidTeacherCount} teacher</span>
         </div>
       </div>
 
@@ -409,6 +489,144 @@ export default function PrivateClasses() {
             <button onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
             <button onClick={handleSave} className="btn-primary">
               {editing ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Payment History */}
+      {classPayments.length > 0 && (
+        <div className="card p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b border-dark-700 bg-dark-900/50 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-dark-300">Payment History</h3>
+            <span className="text-xs text-dark-500">{classPayments.length} payment{classPayments.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dark-700 bg-dark-900/30">
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Date</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Student</th>
+                  <th className="text-right px-4 py-2.5 text-dark-400 font-medium">Amount</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Method</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Receipt</th>
+                  <th className="text-center px-4 py-2.5 text-dark-400 font-medium">Classes</th>
+                  <th className="text-left px-4 py-2.5 text-dark-400 font-medium">Notes</th>
+                  <th className="text-center px-4 py-2.5 text-dark-400 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classPayments.map(p => (
+                  <tr key={p.id} className="border-b border-dark-700/30 hover:bg-dark-800/30">
+                    <td className="px-4 py-2.5 text-dark-300">{formatDate(p.paid_date)}</td>
+                    <td className="px-4 py-2.5 font-medium" dir="auto">{p.student_name}</td>
+                    <td className="px-4 py-2.5 text-right text-emerald-400">
+                      {formatCurrency(p.amount, p.currency)}
+                      {p.currency !== 'QAR' && <span className="block text-xs text-dark-500">{formatCurrency(p.amount_qar)}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-dark-300">{p.payment_method || '-'}</td>
+                    <td className="px-4 py-2.5 text-dark-300">{p.receipt_number || '-'}</td>
+                    <td className="px-4 py-2.5 text-center text-dark-300">{p.classes_count}</td>
+                    <td className="px-4 py-2.5 text-dark-400 text-xs max-w-[150px] truncate">{p.notes || '-'}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <button onClick={() => handleDeletePayment(p)} className="p-1.5 text-dark-400 hover:text-red-400 hover:bg-dark-700 rounded-lg transition-colors">
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      <Modal isOpen={payModalOpen} onClose={() => setPayModalOpen(false)} title="Record Class Payment" size="lg">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">Student *</label>
+              <select value={payForm.student} onChange={e => {
+                const sid = e.target.value
+                const unpaid = classes.filter(c => c.student_payment_status === 'pending' && (!sid || c.student === Number(sid)))
+                setPayForm({ ...payForm, student: sid, classes: unpaid.map(c => c.id) })
+              }} className="w-full">
+                <option value="">Select student...</option>
+                {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">Amount *</label>
+              <div className="flex gap-2">
+                <input type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} placeholder="e.g. 500" className="flex-1" min="1" />
+                <select value={payForm.currency} onChange={e => setPayForm({ ...payForm, currency: e.target.value })} className="w-24">
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              {payForm.currency !== 'QAR' && payForm.amount && (
+                <p className="text-xs text-dark-500 mt-1">
+                  = {formatCurrency(Math.round(Number(payForm.amount) * (CURRENCY_RATES[payForm.currency] || 1) * 100) / 100)} (rate: 1 {payForm.currency} = {CURRENCY_RATES[payForm.currency]} QAR)
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">Payment Date *</label>
+              <input type="date" value={payForm.paid_date} onChange={e => setPayForm({ ...payForm, paid_date: e.target.value })} className="w-full" />
+            </div>
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">Payment Method</label>
+              <input type="text" value={payForm.payment_method} onChange={e => setPayForm({ ...payForm, payment_method: e.target.value })} placeholder="e.g. Cash, Bank Transfer..." className="w-full" />
+            </div>
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">Receipt Number</label>
+              <input type="text" value={payForm.receipt_number} onChange={e => setPayForm({ ...payForm, receipt_number: e.target.value })} placeholder="Optional" className="w-full" />
+            </div>
+          </div>
+
+          {/* Unpaid classes for selected student */}
+          {payForm.student && (
+            <div>
+              <label className="block text-sm text-dark-400 mb-2">Mark classes as paid with this payment:</label>
+              <div className="max-h-48 overflow-y-auto space-y-1 bg-dark-900/50 rounded-lg p-2">
+                {classes.filter(c => c.student === Number(payForm.student) && c.student_payment_status === 'pending').length === 0 ? (
+                  <p className="text-xs text-dark-500 p-2">No unpaid classes for this student</p>
+                ) : (
+                  classes.filter(c => c.student === Number(payForm.student) && c.student_payment_status === 'pending').map(c => (
+                    <label key={c.id} className="flex items-center gap-2 p-2 hover:bg-dark-800 rounded cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={payForm.classes.includes(c.id)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setPayForm({ ...payForm, classes: [...payForm.classes, c.id] })
+                          } else {
+                            setPayForm({ ...payForm, classes: payForm.classes.filter(id => id !== c.id) })
+                          }
+                        }}
+                        className="rounded border-dark-600"
+                      />
+                      <span className="text-dark-300">{formatDate(c.date)}</span>
+                      <span className="text-dark-400">—</span>
+                      <span className="text-dark-200" dir="auto">{c.teacher_name}</span>
+                      <span className="text-dark-400">{c.subject || ''}</span>
+                      <span className="ml-auto text-dark-300">{formatCurrency(c.student_total, c.student_currency)}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm text-dark-400 mb-1">Notes</label>
+            <textarea value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Optional notes..." className="w-full h-16 resize-none" />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setPayModalOpen(false)} className="btn-secondary">Cancel</button>
+            <button onClick={handlePaySave} className="btn-success">
+              <DollarSign size={16} /> Record Payment
             </button>
           </div>
         </div>

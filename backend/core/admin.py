@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Organization, UserProfile, Student, Teacher, Project, Payment, PrivateClass
+from .models import Organization, UserProfile, Student, Teacher, Project, Payment, PrivateClass, ClassPayment
 
 
 @admin.register(Organization)
@@ -47,3 +47,10 @@ class PrivateClassAdmin(admin.ModelAdmin):
     list_display = ['student', 'teacher', 'date', 'duration', 'subject', 'student_payment_status', 'teacher_payment_status', 'organization']
     list_filter = ['student_payment_status', 'teacher_payment_status', 'teacher', 'organization']
     search_fields = ['student__name', 'teacher__name', 'subject']
+
+
+@admin.register(ClassPayment)
+class ClassPaymentAdmin(admin.ModelAdmin):
+    list_display = ['student', 'amount', 'currency', 'amount_qar', 'paid_date', 'organization']
+    list_filter = ['currency', 'organization']
+    search_fields = ['student__name', 'receipt_number']

@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import date
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Student, Teacher, Project, Payment, PrivateClass, CURRENCY_CHOICES, CURRENCY_RATES
+from .models import Student, Teacher, Project, Payment, PrivateClass, ClassPayment, CURRENCY_CHOICES, CURRENCY_RATES
 from .org_utils import get_user_org, OrgQuerySetMixin, OrgPaymentQuerySetMixin
 from .serializers import (
     StudentSerializer, StudentDetailSerializer, StudentCreateSerializer,
@@ -16,6 +16,7 @@ from .serializers import (
     PaymentSerializer, PaymentUpdateSerializer,
     RecordPaymentSerializer, PreviewPaymentSerializer,
     PrivateClassListSerializer, PrivateClassCreateSerializer,
+    ClassPaymentListSerializer, ClassPaymentCreateSerializer,
 )
 from .payment_logic import (
     generate_installments, regenerate_installments,
@@ -293,6 +294,19 @@ class PrivateClassViewSet(OrgQuerySetMixin, viewsets.ModelViewSet):
         obj.teacher_paid_date = None
         obj.save()
         return Response({'status': 'Teacher payment marked as unpaid'})
+
+
+class ClassPaymentViewSet(OrgQuerySetMixin, viewsets.ModelViewSet):
+    queryset = ClassPayment.objects.select_related('student').prefetch_related('classes').all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['student']
+    search_fields = ['student__name', 'notes', 'receipt_number']
+    ordering_fields = ['paid_date', 'created_at']
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return ClassPaymentCreateSerializer
+        return ClassPaymentListSerializer
 
 
 @api_view(['GET'])

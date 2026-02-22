@@ -9,6 +9,7 @@ router.register(r'teachers', views.TeacherViewSet)
 router.register(r'projects', views.ProjectViewSet)
 router.register(r'payments', views.PaymentViewSet)
 router.register(r'private-classes', views.PrivateClassViewSet)
+router.register(r'class-payments', views.ClassPaymentViewSet)
 
 urlpatterns = [
     # Manual routes first (before router to avoid conflicts)
