@@ -188,12 +188,15 @@ def preview_payment(project, amount):
     }
 
 
-def update_overdue_statuses():
+def update_overdue_statuses(org=None):
     """Mark pending installments past due_date as overdue."""
     from .models import Payment
     today = date.today()
-    updated = Payment.objects.filter(
+    qs = Payment.objects.filter(
         status__in=['pending', 'partial'],
         due_date__lt=today,
-    ).exclude(status='paid').update(status='overdue')
+    ).exclude(status='paid')
+    if org:
+        qs = qs.filter(project__organization=org)
+    updated = qs.update(status='overdue')
     return updated

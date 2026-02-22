@@ -8,6 +8,7 @@ from datetime import date
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Student, Teacher, Project, Payment, PrivateClass, CURRENCY_CHOICES, CURRENCY_RATES
+from .org_utils import get_user_org, OrgQuerySetMixin, OrgPaymentQuerySetMixin
 from .serializers import (
     StudentSerializer, StudentDetailSerializer, StudentCreateSerializer,
     TeacherSerializer, TeacherDetailSerializer, TeacherCreateSerializer,
@@ -22,7 +23,7 @@ from .payment_logic import (
 )
 
 
-class StudentViewSet(viewsets.ModelViewSet):
+class StudentViewSet(OrgQuerySetMixin, viewsets.ModelViewSet):
     queryset = Student.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'phone', 'email']
@@ -45,7 +46,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
-class TeacherViewSet(viewsets.ModelViewSet):
+class TeacherViewSet(OrgQuerySetMixin, viewsets.ModelViewSet):
     queryset = Teacher.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'phone', 'email', 'expertise']
@@ -68,7 +69,7 @@ class TeacherViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
-class ProjectViewSet(viewsets.ModelViewSet):
+class ProjectViewSet(OrgQuerySetMixin, viewsets.ModelViewSet):
     queryset = Project.objects.select_related('student', 'teacher').prefetch_related('payments').all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'student', 'teacher']
@@ -83,7 +84,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return ProjectListSerializer
 
     def perform_create(self, serializer):
-        project = serializer.save()
+        org = get_user_org(self.request)
+        project = serializer.save(organization=org)
         generate_installments(project)
 
     def perform_update(self, serializer):
@@ -121,7 +123,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Response({'status': 'Teacher marked as unpaid'})
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(OrgPaymentQuerySetMixin, viewsets.ModelViewSet):
     queryset = Payment.objects.select_related('project__student', 'project__teacher').all()
     serializer_class = PaymentSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -141,8 +143,9 @@ def record_payment(request):
     serializer = RecordPaymentSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
+    org = get_user_org(request)
     try:
-        project = Project.objects.get(id=serializer.validated_data['project_id'])
+        project = Project.objects.get(id=serializer.validated_data['project_id'], organization=org)
     except Project.DoesNotExist:
         return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -162,8 +165,9 @@ def preview_payment_view(request):
     serializer = PreviewPaymentSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
+    org = get_user_org(request)
     try:
-        project = Project.objects.get(id=serializer.validated_data['project_id'])
+        project = Project.objects.get(id=serializer.validated_data['project_id'], organization=org)
     except Project.DoesNotExist:
         return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -174,9 +178,10 @@ def preview_payment_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def overdue_payments(request):
-    update_overdue_statuses()
+    org = get_user_org(request)
+    update_overdue_statuses(org)
     payments = Payment.objects.filter(
-        status='overdue'
+        status='overdue', project__organization=org
     ).select_related('project__student', 'project__teacher').order_by('due_date')
 
     serializer = PaymentSerializer(payments, many=True)
@@ -186,23 +191,24 @@ def overdue_payments(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard(request):
-    update_overdue_statuses()
+    org = get_user_org(request)
+    update_overdue_statuses(org)
 
-    total_students = Student.objects.count()
-    total_teachers = Teacher.objects.count()
-    active_projects = Project.objects.filter(status='active').count()
+    total_students = Student.objects.filter(organization=org).count()
+    total_teachers = Teacher.objects.filter(organization=org).count()
+    active_projects = Project.objects.filter(organization=org, status='active').count()
 
-    total_revenue = Project.objects.aggregate(total=Sum('total_fee'))['total'] or 0
+    total_revenue = Project.objects.filter(organization=org).aggregate(total=Sum('total_fee'))['total'] or 0
     total_collected = Payment.objects.filter(
-        actual_amount__isnull=False,
+        project__organization=org, actual_amount__isnull=False,
     ).aggregate(total=Sum('actual_amount'))['total'] or 0
     total_pending = float(total_revenue) - float(total_collected)
-    overdue_count = Payment.objects.filter(status='overdue').count()
+    overdue_count = Payment.objects.filter(project__organization=org, status='overdue').count()
 
     # Monthly collection data for chart
     from django.db.models.functions import TruncMonth
     monthly_data = (
-        Payment.objects.filter(actual_amount__isnull=False)
+        Payment.objects.filter(project__organization=org, actual_amount__isnull=False)
         .annotate(month=TruncMonth('paid_date'))
         .values('month')
         .annotate(total=Sum('actual_amount'))
@@ -215,12 +221,13 @@ def dashboard(request):
 
     # Recent payments
     recent_payments = Payment.objects.filter(
-        actual_amount__isnull=False,
+        project__organization=org, actual_amount__isnull=False,
     ).select_related('project__student').order_by('-paid_date', '-created_at')[:10]
     recent_data = PaymentSerializer(recent_payments, many=True).data
 
     # Upcoming dues
     upcoming = Payment.objects.filter(
+        project__organization=org,
         status__in=['pending', 'partial'],
         due_date__gte=date.today(),
     ).select_related('project__student').order_by('due_date')[:5]
@@ -241,7 +248,7 @@ def dashboard(request):
     })
 
 
-class PrivateClassViewSet(viewsets.ModelViewSet):
+class PrivateClassViewSet(OrgQuerySetMixin, viewsets.ModelViewSet):
     queryset = PrivateClass.objects.select_related('student', 'teacher').all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['student', 'teacher', 'student_payment_status', 'teacher_payment_status']

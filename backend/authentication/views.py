@@ -7,12 +7,19 @@ from django.contrib.auth.models import User
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def me(request):
+    org_data = None
+    try:
+        profile = request.user.profile
+        org_data = {'id': profile.organization.id, 'name': profile.organization.name}
+    except Exception:
+        pass
     return Response({
         'id': request.user.id,
         'username': request.user.username,
         'email': request.user.email,
         'first_name': request.user.first_name,
         'last_name': request.user.last_name,
+        'organization': org_data,
     })
 
 

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from core.models import Student, Teacher, Project, Payment, CURRENCY_RATES
+from core.models import Student, Teacher, Project, Payment, Organization, UserProfile, CURRENCY_RATES
 from core.payment_logic import generate_installments, apply_payment
 from datetime import date
 from decimal import Decimal
@@ -12,11 +12,18 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Loading real project data...')
 
+        # Create default organization
+        org, _ = Organization.objects.get_or_create(name='Jahez Academy')
+        self.stdout.write(f'Using organization: {org.name}')
+
         # Create admin user if not exists
         if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@jahez.qa', 'admin123')
+            admin_user = User.objects.create_superuser('admin', 'admin@jahez.qa', 'admin123')
+            UserProfile.objects.get_or_create(user=admin_user, defaults={'organization': org})
             self.stdout.write(self.style.SUCCESS('Created admin user (admin/admin123)'))
         else:
+            admin_user = User.objects.get(username='admin')
+            UserProfile.objects.get_or_create(user=admin_user, defaults={'organization': org})
             self.stdout.write('Admin user already exists.')
 
         # ===================== TEACHERS =====================
@@ -32,7 +39,7 @@ class Command(BaseCommand):
             {'name': 'Ahmad Sqor', 'expertise': ''},
         ]
         for td in teacher_data:
-            t, _ = Teacher.objects.get_or_create(name=td['name'], defaults={
+            t, _ = Teacher.objects.get_or_create(name=td['name'], organization=org, defaults={
                 'expertise': td['expertise'],
             })
             teachers[td['name']] = t
@@ -62,7 +69,7 @@ class Command(BaseCommand):
             {'name': 'Ahmed (Oryx)', 'phone': '+974 3133 1533', 'notes': 'Oryx University'},
         ]
         for sd in student_data:
-            s, _ = Student.objects.get_or_create(name=sd['name'], defaults={
+            s, _ = Student.objects.get_or_create(name=sd['name'], organization=org, defaults={
                 'phone': sd['phone'],
                 'notes': sd['notes'],
             })
@@ -411,13 +418,14 @@ class Command(BaseCommand):
 
         created_count = 0
         for pd in projects_data:
-            if Project.objects.filter(code=pd['code']).exists():
+            if Project.objects.filter(code=pd['code'], organization=org).exists():
                 self.stdout.write(f"  Project {pd['code']} already exists, skipping.")
                 continue
 
             project = Project.objects.create(
                 code=pd['code'],
                 name=pd['name'],
+                organization=org,
                 student=students[pd['student']],
                 teacher=teachers[pd['teacher']],
                 currency=pd.get('currency', 'QAR'),

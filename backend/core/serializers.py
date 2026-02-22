@@ -201,7 +201,11 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_code(self, value):
-        if Project.objects.filter(code=value).exclude(pk=self.instance.pk if self.instance else None).exists():
+        request = self.context.get('request')
+        qs = Project.objects.filter(code=value).exclude(pk=self.instance.pk if self.instance else None)
+        if request and hasattr(request.user, 'profile'):
+            qs = qs.filter(organization=request.user.profile.organization)
+        if qs.exists():
             raise serializers.ValidationError("A project with this code already exists.")
         return value
 

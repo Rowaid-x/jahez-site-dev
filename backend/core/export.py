@@ -7,6 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum
 from .models import Student, Teacher, Project, Payment
+from .org_utils import get_user_org
 
 
 BOM = codecs.BOM_UTF8.decode('utf-8')
@@ -26,12 +27,13 @@ def _today_str():
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def export_students(request):
+    org = get_user_org(request)
     filename = f'jahez_students_{_today_str()}.csv'
     response = _csv_response(filename)
     writer = csv.writer(response)
     writer.writerow(['Name', 'Phone', 'Email', 'Total Projects', 'Total Fees (QAR)', 'Total Paid (QAR)', 'Balance (QAR)'])
 
-    for s in Student.objects.all():
+    for s in Student.objects.filter(organization=org):
         total_fees = s.projects.aggregate(t=Sum('total_fee'))['t'] or 0
         total_paid = Payment.objects.filter(
             project__student=s, actual_amount__isnull=False
@@ -48,12 +50,13 @@ def export_students(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def export_teachers(request):
+    org = get_user_org(request)
     filename = f'jahez_teachers_{_today_str()}.csv'
     response = _csv_response(filename)
     writer = csv.writer(response)
     writer.writerow(['Name', 'Expertise', 'Phone', 'Email', 'Total Projects', 'Total Earnings (QAR)', 'Amount Paid (QAR)', 'Amount Unpaid (QAR)'])
 
-    for t in Teacher.objects.all():
+    for t in Teacher.objects.filter(organization=org):
         total_earnings = t.projects.aggregate(s=Sum('teacher_fee'))['s'] or 0
         amount_paid = t.projects.filter(teacher_paid=True).aggregate(s=Sum('teacher_fee'))['s'] or 0
         writer.writerow([
@@ -68,6 +71,7 @@ def export_teachers(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def export_projects(request):
+    org = get_user_org(request)
     filename = f'jahez_projects_{_today_str()}.csv'
     response = _csv_response(filename)
     writer = csv.writer(response)
@@ -77,7 +81,7 @@ def export_projects(request):
         'Status', 'Teacher Fee (QAR)', 'Teacher Paid',
     ])
 
-    for p in Project.objects.select_related('student', 'teacher').prefetch_related('payments').all():
+    for p in Project.objects.filter(organization=org).select_related('student', 'teacher').prefetch_related('payments'):
         writer.writerow([
             p.code, p.name, p.student.name, p.teacher.name,
             float(p.total_fee), p.monthly_amount, p.total_paid,
@@ -103,7 +107,8 @@ def export_payments(request):
         'Payment Method', 'Receipt #',
     ])
 
-    qs = Payment.objects.select_related('project__student').all()
+    org = get_user_org(request)
+    qs = Payment.objects.filter(project__organization=org).select_related('project__student')
     if from_date:
         qs = qs.filter(due_date__gte=from_date)
     if to_date:
@@ -132,8 +137,10 @@ def export_overdue(request):
         'Amount Due (QAR)', 'Due Date', 'Days Overdue',
     ])
 
+    org = get_user_org(request)
     today = date.today()
     overdue = Payment.objects.filter(
+        project__organization=org,
         status__in=['overdue', 'pending', 'partial'],
         due_date__lt=today,
     ).exclude(status='paid').select_related('project__student')
@@ -161,7 +168,8 @@ def export_teacher_payments(request):
         'Teacher Fee (QAR)', 'Paid Status', 'Paid Date',
     ])
 
-    projects = Project.objects.select_related('student', 'teacher').order_by('teacher__name')
+    org = get_user_org(request)
+    projects = Project.objects.filter(organization=org).select_related('student', 'teacher').order_by('teacher__name')
     for p in projects:
         writer.writerow([
             p.teacher.name, p.code, p.student.name,
@@ -175,15 +183,16 @@ def export_teacher_payments(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def export_backup(request):
+    org = get_user_org(request)
     data = {
         'exported_at': datetime.now().isoformat(),
-        'students': list(Student.objects.values()),
-        'teachers': list(Teacher.objects.values()),
+        'students': list(Student.objects.filter(organization=org).values()),
+        'teachers': list(Teacher.objects.filter(organization=org).values()),
         'projects': [],
         'payments': [],
     }
 
-    for p in Project.objects.all():
+    for p in Project.objects.filter(organization=org):
         data['projects'].append({
             'id': p.id, 'code': p.code, 'name': p.name,
             'student_id': p.student_id, 'teacher_id': p.teacher_id,
@@ -197,7 +206,7 @@ def export_backup(request):
             'created_at': p.created_at.isoformat(),
         })
 
-    for pay in Payment.objects.all():
+    for pay in Payment.objects.filter(project__organization=org):
         data['payments'].append({
             'id': pay.id, 'project_id': pay.project_id,
             'scheduled_amount': str(pay.scheduled_amount),

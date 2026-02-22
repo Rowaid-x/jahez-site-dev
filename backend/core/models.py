@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator
 import math
 
@@ -21,7 +22,24 @@ CURRENCY_RATES = {
 }
 
 
+class Organization(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='members')
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.organization.name}"
+
+
 class Student(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='students', null=True)
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20, blank=True, default='')
     email = models.EmailField(blank=True, default='')
@@ -36,6 +54,7 @@ class Student(models.Model):
 
 
 class Teacher(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='teachers', null=True)
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20, blank=True, default='')
     email = models.EmailField(blank=True, default='')
@@ -58,7 +77,8 @@ class Project(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
-    code = models.CharField(max_length=50, unique=True)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='projects', null=True)
+    code = models.CharField(max_length=50)
     name = models.CharField(max_length=255)
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='projects')
     teacher = models.ForeignKey(Teacher, on_delete=models.PROTECT, related_name='projects')
@@ -80,6 +100,7 @@ class Project(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        unique_together = [['organization', 'code']]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -142,6 +163,7 @@ class PrivateClass(models.Model):
         ('paid', 'Paid'),
     ]
 
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='private_classes', null=True)
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='private_classes')
     teacher = models.ForeignKey(Teacher, on_delete=models.PROTECT, related_name='private_classes')
     date = models.DateField()

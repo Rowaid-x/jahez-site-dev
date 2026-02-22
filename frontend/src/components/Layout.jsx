@@ -46,7 +46,7 @@ export default function Layout({ children }) {
               <h1 className="text-2xl font-bold text-brand-400" style={{ fontFamily: 'sans-serif' }}>
                 جاهز
               </h1>
-              <p className="text-xs text-dark-400 mt-1">Jahez Academy</p>
+              <p className="text-xs text-dark-400 mt-1">{user?.organization?.name || 'Jahez Academy'}</p>
             </div>
             <button
               className="lg:hidden text-dark-400 hover:text-dark-200"
