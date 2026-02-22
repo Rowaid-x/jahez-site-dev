@@ -72,8 +72,8 @@ python3 -c "import secrets; print(secrets.token_urlsafe(50))"
 ```env
 DJANGO_SECRET_KEY=<generated-secret-key>
 DJANGO_DEBUG=False
-DJANGO_ALLOWED_HOSTS=72.62.74.227,localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://72.62.74.227
+DJANGO_ALLOWED_HOSTS=dev.jahez-qa.site,localhost,127.0.0.1
+CORS_ALLOWED_ORIGINS=http://dev.jahez-qa.site,https://dev.jahez-qa.site
 DB_NAME=jahez_db
 DB_USER=jahez_user
 DB_PASSWORD=<strong-database-password>
@@ -104,7 +104,10 @@ docker compose -f docker-compose.prod.yml logs web
 docker compose -f docker-compose.prod.yml logs nginx
 ```
 
-Visit `http://72.62.74.227` in your browser to verify.
+If your DNS is configured:
+
+- `http(s)://dev.jahez-qa.site` serves the app.
+- `http(s)://jahez-qa.site` serves a simple landing page.
 
 ---
 
@@ -219,32 +222,28 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ---
 
-## 7. Adding a Domain (Optional)
+## 7. Domains (Subdomain App + Root Landing)
 
-If you point a domain (e.g., `manage.jahez.qa`) to `72.62.74.227`:
+Point these DNS records to `72.62.74.227`:
 
-1. Update `DJANGO_ALLOWED_HOSTS` in `.env`:
-   ```
-   DJANGO_ALLOWED_HOSTS=manage.jahez.qa,72.62.74.227,localhost
-   ```
+- `A` record: `dev.jahez-qa.site` -> `72.62.74.227`
+- `A` record: `jahez-qa.site` -> `72.62.74.227`
+- `A` record: `www.jahez-qa.site` -> `72.62.74.227`
 
-2. Update `CORS_ALLOWED_ORIGINS`:
-   ```
-   CORS_ALLOWED_ORIGINS=http://manage.jahez.qa,https://manage.jahez.qa
-   ```
+The Nginx config is set up so:
 
-3. Update `nginx/nginx.conf` `server_name`:
-   ```
-   server_name manage.jahez.qa;
-   ```
+- `dev.jahez-qa.site` serves the full app (React + `/api`, `/admin`, `/static`).
+- `jahez-qa.site` serves a static landing page from `nginx/landing/index.html`.
 
-4. Install Certbot for SSL:
-   ```bash
-   apt-get install -y certbot python3-certbot-nginx
-   certbot --nginx -d manage.jahez.qa
-   ```
+### Enable HTTPS (recommended)
 
-5. Rebuild:
-   ```bash
-   docker compose -f docker-compose.prod.yml up -d --build
-   ```
+```bash
+apt-get install -y certbot python3-certbot-nginx
+certbot --nginx -d dev.jahez-qa.site -d jahez-qa.site -d www.jahez-qa.site
+```
+
+Then rebuild/restart:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
