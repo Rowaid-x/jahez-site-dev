@@ -241,6 +241,8 @@ class PrivateClassListSerializer(serializers.ModelSerializer):
     teacher_name = serializers.CharField(source='teacher.name', read_only=True)
     student_total = serializers.SerializerMethodField()
     teacher_total = serializers.SerializerMethodField()
+    student_total_qar = serializers.SerializerMethodField()
+    teacher_total_qar = serializers.SerializerMethodField()
     profit = serializers.SerializerMethodField()
 
     class Meta:
@@ -250,7 +252,8 @@ class PrivateClassListSerializer(serializers.ModelSerializer):
             'date', 'duration', 'subject',
             'student_hourly_rate', 'student_currency',
             'teacher_hourly_rate', 'teacher_currency',
-            'student_total', 'teacher_total', 'profit',
+            'student_total', 'teacher_total',
+            'student_total_qar', 'teacher_total_qar', 'profit',
             'student_payment_status', 'student_paid_date',
             'teacher_payment_status', 'teacher_paid_date',
             'notes', 'created_at',
@@ -261,6 +264,12 @@ class PrivateClassListSerializer(serializers.ModelSerializer):
 
     def get_teacher_total(self, obj):
         return obj.teacher_total
+
+    def get_student_total_qar(self, obj):
+        return obj.student_total_qar
+
+    def get_teacher_total_qar(self, obj):
+        return obj.teacher_total_qar
 
     def get_profit(self, obj):
         return obj.profit

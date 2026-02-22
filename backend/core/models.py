@@ -210,8 +210,18 @@ class PrivateClass(models.Model):
         return float(self.teacher_hourly_rate) * float(self.duration)
 
     @property
+    def student_total_qar(self):
+        rate = CURRENCY_RATES.get(self.student_currency, 1.0)
+        return round(self.student_total * rate, 2)
+
+    @property
+    def teacher_total_qar(self):
+        rate = CURRENCY_RATES.get(self.teacher_currency, 1.0)
+        return round(self.teacher_total * rate, 2)
+
+    @property
     def profit(self):
-        return self.student_total - self.teacher_total
+        return round(self.student_total_qar - self.teacher_total_qar, 2)
 
 
 class Payment(models.Model):

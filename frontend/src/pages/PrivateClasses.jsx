@@ -24,6 +24,7 @@ const DURATION_OPTIONS = [
 ]
 
 const CURRENCIES = ['QAR', 'USD', 'GBP', 'JOD', 'EGP']
+const CURRENCY_RATES = { QAR: 1, USD: 3.65, GBP: 4.62, JOD: 5.15, EGP: 0.075 }
 
 export default function PrivateClasses() {
   const [classes, setClasses] = useState([])
@@ -172,9 +173,9 @@ export default function PrivateClasses() {
     } catch { toast.error('Failed to update') }
   }
 
-  // Summary stats
-  const totalStudentRevenue = classes.reduce((s, c) => s + (c.student_total || 0), 0)
-  const totalTeacherCost = classes.reduce((s, c) => s + (c.teacher_total || 0), 0)
+  // Summary stats (all in QAR for correct cross-currency totals)
+  const totalStudentRevenue = classes.reduce((s, c) => s + (c.student_total_qar || 0), 0)
+  const totalTeacherCost = classes.reduce((s, c) => s + (c.teacher_total_qar || 0), 0)
   const totalProfit = classes.reduce((s, c) => s + (c.profit || 0), 0)
   const unpaidStudentCount = classes.filter(c => c.student_payment_status === 'pending').length
   const unpaidTeacherCount = classes.filter(c => c.teacher_payment_status === 'pending').length
@@ -260,6 +261,7 @@ export default function PrivateClasses() {
                   <th className="text-center px-4 py-3 text-dark-400 font-medium">Duration</th>
                   <th className="text-right px-4 py-3 text-dark-400 font-medium">Student Total</th>
                   <th className="text-right px-4 py-3 text-dark-400 font-medium">Teacher Total</th>
+                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Profit (QAR)</th>
                   <th className="text-center px-4 py-3 text-dark-400 font-medium">Student Paid</th>
                   <th className="text-center px-4 py-3 text-dark-400 font-medium">Teacher Paid</th>
                   <th className="text-center px-4 py-3 text-dark-400 font-medium">Actions</th>
@@ -275,6 +277,7 @@ export default function PrivateClasses() {
                     <td className="px-4 py-3 text-center">{Number(c.duration)} hr{Number(c.duration) !== 1 ? 's' : ''}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(c.student_total, c.student_currency)}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(c.teacher_total, c.teacher_currency)}</td>
+                    <td className="px-4 py-3 text-right text-brand-400">{formatCurrency(c.profit, 'QAR')}</td>
                     <td className="px-4 py-3 text-center">
                       {c.student_payment_status === 'paid' ? (
                         <button onClick={() => markStudentUnpaid(c)} className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300">
@@ -385,12 +388,13 @@ export default function PrivateClasses() {
                 <span className="ml-2 text-dark-200 font-medium">{formatCurrency(computedTeacherTotal, form.teacher_currency)}</span>
               </div>
               <div>
-                <span className="text-dark-500">Profit:</span>
+                <span className="text-dark-500">Profit (QAR):</span>
                 <span className="ml-2 text-brand-400 font-medium">
-                  {form.student_currency === form.teacher_currency
-                    ? formatCurrency(computedTotal - computedTeacherTotal, form.student_currency)
-                    : `${formatCurrency(computedTotal, form.student_currency)} - ${formatCurrency(computedTeacherTotal, form.teacher_currency)}`
-                  }
+                  {formatCurrency(
+                    (computedTotal * (CURRENCY_RATES[form.student_currency] || 1)) -
+                    (computedTeacherTotal * (CURRENCY_RATES[form.teacher_currency] || 1)),
+                    'QAR'
+                  )}
                 </span>
               </div>
             </div>
