@@ -16,7 +16,7 @@ class TeacherAdmin(admin.ModelAdmin):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'student', 'teacher', 'status', 'total_fee', 'created_at']
+    list_display = ['code', 'name', 'student', 'teacher', 'status', 'currency', 'total_fee', 'created_at']
     list_filter = ['status']
     search_fields = ['code', 'name', 'student__name', 'teacher__name']
 

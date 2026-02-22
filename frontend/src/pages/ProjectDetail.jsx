@@ -12,6 +12,8 @@ function formatQAR(val) {
   return Number(val).toLocaleString('en-QA') + ' QAR'
 }
 
+const CURRENCY_RATES = { QAR: 1, USD: 3.65, GBP: 4.62, JOD: 5.15, EGP: 0.075 }
+
 function formatDate(d) {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -38,6 +40,8 @@ export default function ProjectDetail() {
           student: res.data.student,
           teacher: res.data.teacher,
           status: res.data.status,
+          currency: res.data.currency || 'QAR',
+          fee_in_original: res.data.fee_in_original || '',
           total_fee: res.data.total_fee,
           installment_months: res.data.installment_months,
           payment_start_date: res.data.payment_start_date,
@@ -55,6 +59,9 @@ export default function ProjectDetail() {
     try {
       await client.put(`/projects/${id}/`, {
         ...editForm,
+        currency: editForm.currency,
+        fee_in_original: editForm.currency !== 'QAR' && editForm.fee_in_original ? Number(editForm.fee_in_original) : null,
+        exchange_rate: CURRENCY_RATES[editForm.currency] || 1,
         total_fee: Number(editForm.total_fee),
         installment_months: Number(editForm.installment_months),
         teacher_fee: editForm.teacher_fee ? Number(editForm.teacher_fee) : null,
@@ -177,7 +184,12 @@ export default function ProjectDetail() {
         </div>
         <div className="flex justify-between mt-2 text-xs text-dark-500">
           <span>Paid: {formatQAR(project.total_paid)}</span>
-          <span>Total: {formatQAR(project.total_fee)}</span>
+          <span>
+            Total: {formatQAR(project.total_fee)}
+            {project.original_fee_display && (
+              <span className="ml-1 text-dark-600">({project.original_fee_display})</span>
+            )}
+          </span>
         </div>
       </div>
 
@@ -281,8 +293,39 @@ export default function ProjectDetail() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-dark-400 mb-1">Total Fee (QAR)</label>
-              <input type="number" value={editForm.total_fee || ''} onChange={e => setEditForm({ ...editForm, total_fee: e.target.value })} className="w-full" />
+              <label className="block text-sm text-dark-400 mb-1">Currency</label>
+              <select value={editForm.currency || 'QAR'} onChange={e => {
+                const cur = e.target.value
+                const rate = CURRENCY_RATES[cur] || 1
+                const orig = editForm.fee_in_original ? Number(editForm.fee_in_original) : 0
+                const qarAmt = cur === 'QAR' ? orig : Math.round(orig * rate)
+                setEditForm({ ...editForm, currency: cur, total_fee: qarAmt || editForm.total_fee })
+              }} className="w-full">
+                <option value="QAR">QAR - Qatari Riyal</option>
+                <option value="USD">USD - US Dollar</option>
+                <option value="GBP">GBP - British Pound</option>
+                <option value="JOD">JOD - Jordanian Dinar</option>
+                <option value="EGP">EGP - Egyptian Pound</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">
+                {editForm.currency === 'QAR' ? 'Total Fee (QAR)' : `Fee in ${editForm.currency}`}
+              </label>
+              <input type="number" value={editForm.currency === 'QAR' ? (editForm.total_fee || '') : (editForm.fee_in_original || '')} onChange={e => {
+                const val = e.target.value
+                const rate = CURRENCY_RATES[editForm.currency] || 1
+                if (editForm.currency === 'QAR') {
+                  setEditForm({ ...editForm, total_fee: val, fee_in_original: '' })
+                } else {
+                  setEditForm({ ...editForm, fee_in_original: val, total_fee: Math.round(Number(val) * rate) || '' })
+                }
+              }} className="w-full" />
+              {editForm.currency !== 'QAR' && editForm.fee_in_original && (
+                <p className="text-xs text-dark-500 mt-1">
+                  = {formatQAR(editForm.total_fee)} (rate: 1 {editForm.currency} = {CURRENCY_RATES[editForm.currency]} QAR)
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm text-dark-400 mb-1">Installment Months</label>

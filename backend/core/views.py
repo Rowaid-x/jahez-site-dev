@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import date
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Student, Teacher, Project, Payment
+from .models import Student, Teacher, Project, Payment, CURRENCY_CHOICES, CURRENCY_RATES
 from .serializers import (
     StudentSerializer, StudentDetailSerializer, StudentCreateSerializer,
     TeacherSerializer, TeacherDetailSerializer, TeacherCreateSerializer,
@@ -238,3 +238,13 @@ def dashboard(request):
         'upcoming_dues': upcoming_data,
         'collection_rate': round(float(total_collected) / float(total_revenue) * 100, 1) if total_revenue else 0,
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def currencies(request):
+    data = [
+        {'code': code, 'name': label, 'rate': CURRENCY_RATES.get(code, 1.0)}
+        for code, label in CURRENCY_CHOICES
+    ]
+    return Response(data)

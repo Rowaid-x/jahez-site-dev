@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Teacher, Project, Payment
+from .models import Student, Teacher, Project, Payment, CURRENCY_CHOICES, CURRENCY_RATES
 from django.db.models import Sum, Count, Q
 from decimal import Decimal
 
@@ -42,11 +42,13 @@ class ProjectMinimalSerializer(serializers.ModelSerializer):
     total_paid = serializers.SerializerMethodField()
     remaining_balance = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
+    original_fee_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
             'id', 'code', 'name', 'status', 'total_fee',
+            'currency', 'fee_in_original', 'exchange_rate', 'original_fee_display',
             'teacher_fee', 'teacher_paid', 'student_name', 'teacher_name',
             'monthly_amount', 'total_paid', 'remaining_balance', 'payment_status',
         ]
@@ -62,6 +64,9 @@ class ProjectMinimalSerializer(serializers.ModelSerializer):
 
     def get_payment_status(self, obj):
         return obj.payment_status
+
+    def get_original_fee_display(self, obj):
+        return obj.original_fee_display
 
 
 class StudentDetailSerializer(StudentSerializer):
@@ -148,13 +153,15 @@ class ProjectListSerializer(serializers.ModelSerializer):
     total_paid = serializers.SerializerMethodField()
     remaining_balance = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
+    original_fee_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
             'id', 'code', 'name', 'student', 'student_name',
-            'teacher', 'teacher_name', 'status', 'total_fee',
-            'installment_months', 'payment_start_date',
+            'teacher', 'teacher_name', 'status',
+            'currency', 'fee_in_original', 'exchange_rate', 'original_fee_display',
+            'total_fee', 'installment_months', 'payment_start_date',
             'teacher_fee', 'teacher_paid', 'teacher_paid_date',
             'notes', 'created_at',
             'monthly_amount', 'total_paid', 'remaining_balance', 'payment_status',
@@ -172,6 +179,9 @@ class ProjectListSerializer(serializers.ModelSerializer):
     def get_payment_status(self, obj):
         return obj.payment_status
 
+    def get_original_fee_display(self, obj):
+        return obj.original_fee_display
+
 
 class ProjectDetailSerializer(ProjectListSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
@@ -185,6 +195,7 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             'id', 'code', 'name', 'student', 'teacher', 'status',
+            'currency', 'fee_in_original', 'exchange_rate',
             'total_fee', 'installment_months', 'payment_start_date',
             'teacher_fee', 'notes',
         ]

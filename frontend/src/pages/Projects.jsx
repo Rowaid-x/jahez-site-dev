@@ -11,6 +11,8 @@ function formatQAR(val) {
   return Number(val).toLocaleString('en-QA') + ' QAR'
 }
 
+const CURRENCY_RATES = { QAR: 1, USD: 3.65, GBP: 4.62, JOD: 5.15, EGP: 0.075 }
+
 export default function Projects() {
   const [projects, setProjects] = useState([])
   const [students, setStudents] = useState([])
@@ -20,7 +22,8 @@ export default function Projects() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({
     code: '', name: '', student: '', teacher: '',
-    total_fee: '', installment_months: '', payment_start_date: '',
+    currency: 'QAR', fee_in_original: '', total_fee: '',
+    installment_months: '', payment_start_date: '',
     teacher_fee: '', notes: '',
   })
 
@@ -54,11 +57,25 @@ export default function Projects() {
   const openCreate = () => {
     setForm({
       code: '', name: '', student: '', teacher: '',
-      total_fee: '', installment_months: '',
+      currency: 'QAR', fee_in_original: '', total_fee: '',
+      installment_months: '',
       payment_start_date: getDefaultStartDate(),
       teacher_fee: '', notes: '',
     })
     setModalOpen(true)
+  }
+
+  const handleCurrencyChange = (currency) => {
+    const rate = CURRENCY_RATES[currency] || 1
+    const origAmt = form.fee_in_original ? Number(form.fee_in_original) : 0
+    const qarAmt = currency === 'QAR' ? origAmt : Math.round(origAmt * rate)
+    setForm({ ...form, currency, total_fee: qarAmt || '' })
+  }
+
+  const handleOriginalFeeChange = (val) => {
+    const rate = CURRENCY_RATES[form.currency] || 1
+    const qarAmt = form.currency === 'QAR' ? val : Math.round(Number(val) * rate)
+    setForm({ ...form, fee_in_original: val, total_fee: qarAmt || '' })
   }
 
   const handleSave = async () => {
@@ -71,6 +88,9 @@ export default function Projects() {
         ...form,
         student: Number(form.student),
         teacher: Number(form.teacher),
+        currency: form.currency,
+        fee_in_original: form.currency !== 'QAR' && form.fee_in_original ? Number(form.fee_in_original) : null,
+        exchange_rate: CURRENCY_RATES[form.currency] || 1,
         total_fee: Number(form.total_fee),
         installment_months: Number(form.installment_months),
         teacher_fee: form.teacher_fee ? Number(form.teacher_fee) : null,
@@ -137,7 +157,12 @@ export default function Projects() {
                     <td className="px-4 py-3 font-medium">{p.name}</td>
                     <td className="px-4 py-3 text-dark-300" dir="auto">{p.student_name}</td>
                     <td className="px-4 py-3 text-dark-300" dir="auto">{p.teacher_name}</td>
-                    <td className="px-4 py-3 text-right">{formatQAR(p.total_fee)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {formatQAR(p.total_fee)}
+                      {p.original_fee_display && (
+                        <span className="block text-xs text-dark-500">{p.original_fee_display}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right text-emerald-400">{formatQAR(p.total_paid)}</td>
                     <td className="px-4 py-3 text-right text-yellow-400">{formatQAR(p.remaining_balance)}</td>
                     <td className="px-4 py-3 text-center"><StatusBadge status={p.status} /></td>
@@ -184,8 +209,25 @@ export default function Projects() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-dark-400 mb-1">Total Fee (QAR) *</label>
-              <input type="number" value={form.total_fee} onChange={e => setForm({ ...form, total_fee: e.target.value })} placeholder="e.g. 10000" className="w-full" min="1" />
+              <label className="block text-sm text-dark-400 mb-1">Currency</label>
+              <select value={form.currency} onChange={e => handleCurrencyChange(e.target.value)} className="w-full">
+                <option value="QAR">QAR - Qatari Riyal</option>
+                <option value="USD">USD - US Dollar</option>
+                <option value="GBP">GBP - British Pound</option>
+                <option value="JOD">JOD - Jordanian Dinar</option>
+                <option value="EGP">EGP - Egyptian Pound</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-dark-400 mb-1">
+                {form.currency === 'QAR' ? 'Total Fee (QAR) *' : `Fee in ${form.currency} *`}
+              </label>
+              <input type="number" value={form.fee_in_original || form.total_fee} onChange={e => handleOriginalFeeChange(e.target.value)} placeholder="e.g. 10000" className="w-full" min="1" />
+              {form.currency !== 'QAR' && form.fee_in_original && (
+                <p className="text-xs text-dark-500 mt-1">
+                  = {formatQAR(form.total_fee)} (rate: 1 {form.currency} = {CURRENCY_RATES[form.currency]} QAR)
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm text-dark-400 mb-1">Installment Months *</label>

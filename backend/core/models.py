@@ -3,6 +3,24 @@ from django.core.validators import MinValueValidator
 import math
 
 
+CURRENCY_CHOICES = [
+    ('QAR', 'QAR - Qatari Riyal'),
+    ('USD', 'USD - US Dollar'),
+    ('GBP', 'GBP - British Pound'),
+    ('JOD', 'JOD - Jordanian Dinar'),
+    ('EGP', 'EGP - Egyptian Pound'),
+]
+
+# Typical bank exchange rates to QAR
+CURRENCY_RATES = {
+    'QAR': 1.0,
+    'USD': 3.65,
+    'GBP': 4.62,
+    'JOD': 5.15,
+    'EGP': 0.075,
+}
+
+
 class Student(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20, blank=True, default='')
@@ -45,7 +63,13 @@ class Project(models.Model):
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='projects')
     teacher = models.ForeignKey(Teacher, on_delete=models.PROTECT, related_name='projects')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    total_fee = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0.01)])
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='QAR')
+    fee_in_original = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,
+                                          help_text='Fee in original currency (before conversion to QAR)')
+    exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, default=1.0,
+                                       help_text='Exchange rate used: 1 original currency = X QAR')
+    total_fee = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0.01)],
+                                    help_text='Total fee in QAR')
     installment_months = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     payment_start_date = models.DateField()
     teacher_fee = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -59,6 +83,12 @@ class Project(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    @property
+    def original_fee_display(self):
+        if self.currency != 'QAR' and self.fee_in_original:
+            return f"{float(self.fee_in_original):,.2f} {self.currency}"
+        return None
 
     @property
     def monthly_amount(self):

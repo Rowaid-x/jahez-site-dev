@@ -15,6 +15,7 @@ urlpatterns = [
     path('payments/preview/', views.preview_payment_view, name='preview-payment'),
     path('payments/overdue/', views.overdue_payments, name='overdue-payments'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('currencies/', views.currencies, name='currencies'),
     # Export endpoints
     path('export/students/', export.export_students, name='export-students'),
     path('export/teachers/', export.export_teachers, name='export-teachers'),
