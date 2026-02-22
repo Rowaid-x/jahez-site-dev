@@ -230,9 +230,21 @@ export default function PrivateClasses() {
       toast.success('Payment recorded')
       setPayModalOpen(false)
       fetchClassPayments()
-      // Mark selected classes as paid
-      for (const classId of payForm.classes) {
-        try { await client.post(`/private-classes/${classId}/mark_student_paid/`) } catch {}
+      // Only mark classes as paid if payment covers their full cost
+      const paymentQar = payForm.currency === 'QAR' ? Number(payForm.amount) : Number(payForm.amount) * rate
+      let remaining = paymentQar
+      const selectedClasses = payForm.classes
+        .map(id => classes.find(c => c.id === id))
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+      for (const cls of selectedClasses) {
+        const classCostQar = cls.student_total_qar || 0
+        if (remaining >= classCostQar && classCostQar > 0) {
+          try { await client.post(`/private-classes/${cls.id}/mark_student_paid/`) } catch {}
+          remaining -= classCostQar
+        } else {
+          break
+        }
       }
       fetchClasses()
     } catch (err) {

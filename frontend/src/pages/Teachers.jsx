@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, GraduationCap, Phone, Mail, Briefcase, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, GraduationCap, Phone, Mail, Briefcase, CheckCircle, XCircle, BookOpen } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import client from '../api/client'
 import toast from 'react-hot-toast'
@@ -11,6 +11,16 @@ function formatQAR(val) {
   return Number(val).toLocaleString('en-QA') + ' QAR'
 }
 
+function formatCurrency(val, currency = 'QAR') {
+  if (val == null) return `0 ${currency}`
+  return Number(val).toLocaleString('en-QA') + ` ${currency}`
+}
+
+function formatDate(d) {
+  if (!d) return '-'
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 export default function Teachers() {
   const [teachers, setTeachers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,6 +29,7 @@ export default function Teachers() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailTeacher, setDetailTeacher] = useState(null)
   const [detailProjects, setDetailProjects] = useState([])
+  const [detailClasses, setDetailClasses] = useState([])
   const [payoutLoadingId, setPayoutLoadingId] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', email: '', expertise: '', notes: '' })
 
@@ -40,6 +51,7 @@ export default function Teachers() {
       if (detailTeacher) {
         const res = await client.get(`/teachers/${detailTeacher.id}/`)
         setDetailProjects(res.data.projects || [])
+        setDetailClasses(res.data.private_classes || [])
       }
       fetchTeachers()
     } catch {
@@ -58,6 +70,7 @@ export default function Teachers() {
       if (detailTeacher) {
         const res = await client.get(`/teachers/${detailTeacher.id}/`)
         setDetailProjects(res.data.projects || [])
+        setDetailClasses(res.data.private_classes || [])
       }
       fetchTeachers()
     } catch {
@@ -117,8 +130,10 @@ export default function Teachers() {
     try {
       const res = await client.get(`/teachers/${t.id}/`)
       setDetailProjects(res.data.projects || [])
+      setDetailClasses(res.data.private_classes || [])
     } catch {
       setDetailProjects([])
+      setDetailClasses([])
     }
   }
 
@@ -190,18 +205,22 @@ export default function Teachers() {
                 )}
               </div>
 
-              <div className="border-t border-dark-700 pt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="border-t border-dark-700 pt-4 grid grid-cols-2 gap-2 text-center">
                 <div>
                   <p className="text-xs text-dark-500">Projects</p>
                   <p className="text-sm font-bold text-dark-200">{t.total_projects}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-dark-500">Earnings</p>
+                  <p className="text-xs text-dark-500">Classes</p>
+                  <p className="text-sm font-bold text-orange-400">{t.total_classes || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-dark-500">Proj Earnings</p>
                   <p className="text-sm font-bold text-dark-200">{formatQAR(t.total_earnings)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-dark-500">Unpaid</p>
-                  <p className="text-sm font-bold text-yellow-400">{formatQAR(t.amount_unpaid)}</p>
+                  <p className="text-xs text-dark-500">Class Cost</p>
+                  <p className="text-sm font-bold text-dark-200">{formatQAR(t.classes_cost_qar)}</p>
                 </div>
               </div>
             </div>
@@ -247,7 +266,9 @@ export default function Teachers() {
               <div><span className="text-dark-500">Expertise:</span> <span className="text-dark-200 ml-2">{detailTeacher.expertise || '-'}</span></div>
               <div><span className="text-dark-500">Phone:</span> <span className="text-dark-200 ml-2">{detailTeacher.phone || '-'}</span></div>
               <div><span className="text-dark-500">Email:</span> <span className="text-dark-200 ml-2">{detailTeacher.email || '-'}</span></div>
-              <div><span className="text-dark-500">Total Earnings:</span> <span className="text-emerald-400 ml-2">{formatQAR(detailTeacher.total_earnings)}</span></div>
+              <div><span className="text-dark-500">Proj Earnings:</span> <span className="text-emerald-400 ml-2">{formatQAR(detailTeacher.total_earnings)}</span></div>
+              <div><span className="text-dark-500">Classes:</span> <span className="text-orange-400 ml-2">{detailTeacher.total_classes || 0}</span></div>
+              <div><span className="text-dark-500">Class Cost:</span> <span className="text-emerald-400 ml-2">{formatQAR(detailTeacher.classes_cost_qar)}</span></div>
             </div>
             <h4 className="text-sm font-semibold text-dark-300 pt-2">Assigned Projects</h4>
             {detailProjects.length > 0 ? (
@@ -297,6 +318,28 @@ export default function Teachers() {
               </div>
             ) : (
               <p className="text-dark-500 text-sm">No projects assigned</p>
+            )}
+
+            <h4 className="text-sm font-semibold text-dark-300 pt-2 flex items-center gap-1.5"><BookOpen size={14} /> Private Classes</h4>
+            {detailClasses.length > 0 ? (
+              <div className="space-y-2">
+                {detailClasses.map(c => (
+                  <div key={c.id} className="flex items-center justify-between py-2 px-3 bg-dark-900/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-dark-400">{formatDate(c.date)}</span>
+                      <span className="text-sm font-medium" dir="auto">{c.subject || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-dark-300">{formatCurrency(c.teacher_total, c.teacher_currency)}</span>
+                      <span className={`text-xs ${c.teacher_payment_status === 'paid' ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                        {c.teacher_payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-dark-500 text-sm">No classes assigned</p>
             )}
           </div>
         )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Edit, Trash2, ChevronDown, ChevronUp, FolderKanban } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, ChevronDown, ChevronUp, FolderKanban, BookOpen } from 'lucide-react'
 import client from '../api/client'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
@@ -10,6 +10,16 @@ function formatQAR(val) {
   return Number(val).toLocaleString('en-QA') + ' QAR'
 }
 
+function formatCurrency(val, currency = 'QAR') {
+  if (val == null) return `0 ${currency}`
+  return Number(val).toLocaleString('en-QA') + ` ${currency}`
+}
+
+function formatDate(d) {
+  if (!d) return '-'
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 export default function Students() {
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,6 +28,7 @@ export default function Students() {
   const [editing, setEditing] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [expandedProjects, setExpandedProjects] = useState([])
+  const [expandedClasses, setExpandedClasses] = useState([])
   const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' })
 
   const fetchStudents = () => {
@@ -80,8 +91,10 @@ export default function Students() {
       const res = await client.get(`/students/${id}/`)
       const detail = res.data
       setExpandedProjects(detail.projects || [])
+      setExpandedClasses(detail.private_classes || [])
     } catch {
       setExpandedProjects([])
+      setExpandedClasses([])
     }
   }
 
@@ -127,10 +140,10 @@ export default function Students() {
                   <th className="text-left px-4 py-3 text-dark-400 font-medium">Name</th>
                   <th className="text-left px-4 py-3 text-dark-400 font-medium">Phone</th>
                   <th className="text-left px-4 py-3 text-dark-400 font-medium">Email</th>
-                  <th className="text-right px-4 py-3 text-dark-400 font-medium"># Projects</th>
-                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Total Fees</th>
-                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Paid</th>
-                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Balance</th>
+                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Projects</th>
+                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Proj Balance</th>
+                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Classes</th>
+                  <th className="text-right px-4 py-3 text-dark-400 font-medium">Class Balance</th>
                   <th className="text-right px-4 py-3 text-dark-400 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -149,9 +162,13 @@ export default function Students() {
                       <td className="px-4 py-3 text-dark-300">{s.phone || '-'}</td>
                       <td className="px-4 py-3 text-dark-300">{s.email || '-'}</td>
                       <td className="px-4 py-3 text-right">{s.total_projects}</td>
-                      <td className="px-4 py-3 text-right">{formatQAR(s.total_fees)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-400">{formatQAR(s.total_paid)}</td>
-                      <td className="px-4 py-3 text-right text-yellow-400">{formatQAR(s.balance)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {s.balance > 0 ? <span className="text-yellow-400">{formatQAR(s.balance)}</span> : <span className="text-emerald-400">{formatQAR(s.balance)}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right">{s.total_classes || 0}</td>
+                      <td className="px-4 py-3 text-right">
+                        {(s.classes_balance || 0) > 0 ? <span className="text-yellow-400">{formatQAR(s.classes_balance)}</span> : <span className="text-emerald-400">{formatQAR(s.classes_balance)}</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -172,27 +189,50 @@ export default function Students() {
                     {expandedId === s.id && (
                       <tr key={`${s.id}-exp`} className="bg-dark-900/30">
                         <td colSpan={9} className="px-8 py-4">
-                          {expandedProjects.length > 0 ? (
-                            <div className="space-y-2">
-                              <p className="text-xs text-dark-400 font-medium mb-2">Projects</p>
-                              {expandedProjects.map(p => (
-                                <div key={p.id} className="flex items-center justify-between py-2 px-3 bg-dark-800 rounded-lg">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-xs font-mono text-dark-400">{p.code}</span>
-                                    <span className="text-sm font-medium">{p.name}</span>
+                          <div className="space-y-4">
+                            {expandedProjects.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs text-dark-400 font-medium mb-2 flex items-center gap-1.5"><FolderKanban size={13} /> Projects</p>
+                                {expandedProjects.map(p => (
+                                  <div key={p.id} className="flex items-center justify-between py-2 px-3 bg-dark-800 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs font-mono text-dark-400">{p.code}</span>
+                                      <span className="text-sm font-medium">{p.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-dark-400">Paid: <span className="text-emerald-400">{formatQAR(p.total_paid)}</span></span>
+                                      <span className="text-xs text-dark-400">Balance: <span className="text-yellow-400">{formatQAR(p.remaining_balance)}</span></span>
+                                      <StatusBadge status={p.payment_status} />
+                                      <StatusBadge status={p.status} />
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-xs text-dark-400">Paid: <span className="text-emerald-400">{formatQAR(p.total_paid)}</span></span>
-                                    <span className="text-xs text-dark-400">Balance: <span className="text-yellow-400">{formatQAR(p.remaining_balance)}</span></span>
-                                    <StatusBadge status={p.payment_status} />
-                                    <StatusBadge status={p.status} />
+                                ))}
+                              </div>
+                            )}
+                            {expandedClasses.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs text-dark-400 font-medium mb-2 flex items-center gap-1.5"><BookOpen size={13} /> Private Classes</p>
+                                {expandedClasses.map(c => (
+                                  <div key={c.id} className="flex items-center justify-between py-2 px-3 bg-dark-800 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-dark-400">{formatDate(c.date)}</span>
+                                      <span className="text-sm font-medium" dir="auto">{c.teacher_name}</span>
+                                      <span className="text-xs text-dark-500">{c.subject || ''}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-dark-300">{formatCurrency(c.student_total, c.student_currency)}</span>
+                                      <span className={`text-xs ${c.student_payment_status === 'paid' ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                        {c.student_payment_status === 'paid' ? 'Paid' : 'Pending'}
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-dark-500 text-sm">No projects yet</p>
-                          )}
+                                ))}
+                              </div>
+                            )}
+                            {expandedProjects.length === 0 && expandedClasses.length === 0 && (
+                              <p className="text-dark-500 text-sm">No projects or classes yet</p>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}

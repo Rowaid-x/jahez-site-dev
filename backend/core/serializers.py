@@ -9,12 +9,17 @@ class StudentSerializer(serializers.ModelSerializer):
     total_fees = serializers.SerializerMethodField()
     total_paid = serializers.SerializerMethodField()
     balance = serializers.SerializerMethodField()
+    total_classes = serializers.SerializerMethodField()
+    classes_revenue_qar = serializers.SerializerMethodField()
+    classes_collected_qar = serializers.SerializerMethodField()
+    classes_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
         fields = [
             'id', 'name', 'phone', 'email', 'notes', 'created_at',
             'total_projects', 'total_fees', 'total_paid', 'balance',
+            'total_classes', 'classes_revenue_qar', 'classes_collected_qar', 'classes_balance',
         ]
 
     def get_total_projects(self, obj):
@@ -33,6 +38,22 @@ class StudentSerializer(serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return self.get_total_fees(obj) - self.get_total_paid(obj)
+
+    def get_total_classes(self, obj):
+        return obj.private_classes.count()
+
+    def get_classes_revenue_qar(self, obj):
+        total = 0
+        for pc in obj.private_classes.all():
+            total += pc.student_total_qar
+        return round(total, 2)
+
+    def get_classes_collected_qar(self, obj):
+        result = obj.class_payments.aggregate(total=Sum('amount_qar'))
+        return float(result['total'] or 0)
+
+    def get_classes_balance(self, obj):
+        return round(self.get_classes_revenue_qar(obj) - self.get_classes_collected_qar(obj), 2)
 
 
 class ProjectMinimalSerializer(serializers.ModelSerializer):
@@ -75,11 +96,43 @@ class ProjectMinimalSerializer(serializers.ModelSerializer):
         return obj.teacher_fee_display
 
 
+class PrivateClassMinimalSerializer(serializers.ModelSerializer):
+    teacher_name = serializers.CharField(source='teacher.name', read_only=True)
+    student_total = serializers.SerializerMethodField()
+    teacher_total = serializers.SerializerMethodField()
+    student_total_qar = serializers.SerializerMethodField()
+    teacher_total_qar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrivateClass
+        fields = [
+            'id', 'date', 'duration', 'subject', 'teacher_name',
+            'student_hourly_rate', 'student_currency',
+            'teacher_hourly_rate', 'teacher_currency',
+            'student_total', 'teacher_total',
+            'student_total_qar', 'teacher_total_qar',
+            'student_payment_status', 'teacher_payment_status',
+        ]
+
+    def get_student_total(self, obj):
+        return obj.student_total
+
+    def get_teacher_total(self, obj):
+        return obj.teacher_total
+
+    def get_student_total_qar(self, obj):
+        return obj.student_total_qar
+
+    def get_teacher_total_qar(self, obj):
+        return obj.teacher_total_qar
+
+
 class StudentDetailSerializer(StudentSerializer):
     projects = ProjectMinimalSerializer(many=True, read_only=True)
+    private_classes = PrivateClassMinimalSerializer(many=True, read_only=True)
 
     class Meta(StudentSerializer.Meta):
-        fields = StudentSerializer.Meta.fields + ['projects']
+        fields = StudentSerializer.Meta.fields + ['projects', 'private_classes']
 
 
 class StudentCreateSerializer(serializers.ModelSerializer):
@@ -93,12 +146,17 @@ class TeacherSerializer(serializers.ModelSerializer):
     total_earnings = serializers.SerializerMethodField()
     amount_paid = serializers.SerializerMethodField()
     amount_unpaid = serializers.SerializerMethodField()
+    total_classes = serializers.SerializerMethodField()
+    classes_cost_qar = serializers.SerializerMethodField()
+    classes_paid_count = serializers.SerializerMethodField()
+    classes_unpaid_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Teacher
         fields = [
             'id', 'name', 'phone', 'email', 'expertise', 'notes', 'created_at',
             'total_projects', 'total_earnings', 'amount_paid', 'amount_unpaid',
+            'total_classes', 'classes_cost_qar', 'classes_paid_count', 'classes_unpaid_count',
         ]
 
     def get_total_projects(self, obj):
@@ -115,12 +173,28 @@ class TeacherSerializer(serializers.ModelSerializer):
     def get_amount_unpaid(self, obj):
         return self.get_total_earnings(obj) - self.get_amount_paid(obj)
 
+    def get_total_classes(self, obj):
+        return obj.private_classes.count()
+
+    def get_classes_cost_qar(self, obj):
+        total = 0
+        for pc in obj.private_classes.all():
+            total += pc.teacher_total_qar
+        return round(total, 2)
+
+    def get_classes_paid_count(self, obj):
+        return obj.private_classes.filter(teacher_payment_status='paid').count()
+
+    def get_classes_unpaid_count(self, obj):
+        return obj.private_classes.filter(teacher_payment_status='pending').count()
+
 
 class TeacherDetailSerializer(TeacherSerializer):
     projects = ProjectMinimalSerializer(many=True, read_only=True)
+    private_classes = PrivateClassMinimalSerializer(many=True, read_only=True)
 
     class Meta(TeacherSerializer.Meta):
-        fields = TeacherSerializer.Meta.fields + ['projects']
+        fields = TeacherSerializer.Meta.fields + ['projects', 'private_classes']
 
 
 class TeacherCreateSerializer(serializers.ModelSerializer):
