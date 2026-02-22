@@ -4,9 +4,9 @@ import client from '../api/client'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
 
-function formatQAR(val) {
-  if (val == null) return '0 QAR'
-  return Number(val).toLocaleString('en-QA') + ' QAR'
+function formatCurrency(val, currency = 'QAR') {
+  if (val == null) return `0 ${currency}`
+  return Number(val).toLocaleString('en-QA') + ` ${currency}`
 }
 
 function formatDate(d) {
@@ -23,6 +23,8 @@ const DURATION_OPTIONS = [
   { value: '3.0', label: '3 hrs' },
 ]
 
+const CURRENCIES = ['QAR', 'USD', 'GBP', 'JOD', 'EGP']
+
 export default function PrivateClasses() {
   const [classes, setClasses] = useState([])
   const [students, setStudents] = useState([])
@@ -34,7 +36,8 @@ export default function PrivateClasses() {
   const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({
     student: '', teacher: '', date: '', duration: '1.0', subject: '',
-    student_hourly_rate: '', teacher_hourly_rate: '',
+    student_hourly_rate: '', student_currency: 'QAR',
+    teacher_hourly_rate: '', teacher_currency: 'QAR',
     student_payment_status: 'pending', teacher_payment_status: 'pending',
     notes: '',
   })
@@ -68,7 +71,8 @@ export default function PrivateClasses() {
     setEditing(null)
     setForm({
       student: '', teacher: '', date: getDefaultDate(), duration: '1.0', subject: '',
-      student_hourly_rate: '', teacher_hourly_rate: '',
+      student_hourly_rate: '', student_currency: 'QAR',
+      teacher_hourly_rate: '', teacher_currency: 'QAR',
       student_payment_status: 'pending', teacher_payment_status: 'pending',
       notes: '',
     })
@@ -81,7 +85,9 @@ export default function PrivateClasses() {
       student: c.student, teacher: c.teacher, date: c.date,
       duration: String(c.duration), subject: c.subject || '',
       student_hourly_rate: c.student_hourly_rate,
+      student_currency: c.student_currency || 'QAR',
       teacher_hourly_rate: c.teacher_hourly_rate,
+      teacher_currency: c.teacher_currency || 'QAR',
       student_payment_status: c.student_payment_status,
       teacher_payment_status: c.teacher_payment_status,
       notes: c.notes || '',
@@ -101,7 +107,9 @@ export default function PrivateClasses() {
         teacher: Number(form.teacher),
         duration: Number(form.duration),
         student_hourly_rate: Number(form.student_hourly_rate),
+        student_currency: form.student_currency,
         teacher_hourly_rate: Number(form.teacher_hourly_rate),
+        teacher_currency: form.teacher_currency,
         student_paid_date: form.student_payment_status === 'paid' ? (form.student_paid_date || getDefaultDate()) : null,
         teacher_paid_date: form.teacher_payment_status === 'paid' ? (form.teacher_paid_date || getDefaultDate()) : null,
       }
@@ -195,15 +203,15 @@ export default function PrivateClasses() {
         </div>
         <div className="stat-card">
           <span className="text-xs text-dark-400">Student Revenue</span>
-          <span className="text-lg font-bold text-emerald-400">{formatQAR(totalStudentRevenue)}</span>
+          <span className="text-lg font-bold text-emerald-400">{formatCurrency(totalStudentRevenue)}</span>
         </div>
         <div className="stat-card">
           <span className="text-xs text-dark-400">Teacher Cost</span>
-          <span className="text-lg font-bold text-yellow-400">{formatQAR(totalTeacherCost)}</span>
+          <span className="text-lg font-bold text-yellow-400">{formatCurrency(totalTeacherCost)}</span>
         </div>
         <div className="stat-card">
           <span className="text-xs text-dark-400">Profit</span>
-          <span className="text-lg font-bold text-brand-400">{formatQAR(totalProfit)}</span>
+          <span className="text-lg font-bold text-brand-400">{formatCurrency(totalProfit)}</span>
         </div>
         <div className="stat-card">
           <span className="text-xs text-dark-400">Unpaid</span>
@@ -265,8 +273,8 @@ export default function PrivateClasses() {
                     <td className="px-4 py-3 text-dark-300" dir="auto">{c.teacher_name}</td>
                     <td className="px-4 py-3 text-dark-300" dir="auto">{c.subject || '-'}</td>
                     <td className="px-4 py-3 text-center">{Number(c.duration)} hr{Number(c.duration) !== 1 ? 's' : ''}</td>
-                    <td className="px-4 py-3 text-right">{formatQAR(c.student_total)}</td>
-                    <td className="px-4 py-3 text-right">{formatQAR(c.teacher_total)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(c.student_total, c.student_currency)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(c.teacher_total, c.teacher_currency)}</td>
                     <td className="px-4 py-3 text-center">
                       {c.student_payment_status === 'paid' ? (
                         <button onClick={() => markStudentUnpaid(c)} className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300">
@@ -342,12 +350,22 @@ export default function PrivateClasses() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-dark-400 mb-1">Student Rate / hr (QAR) *</label>
-              <input type="number" value={form.student_hourly_rate} onChange={e => setForm({ ...form, student_hourly_rate: e.target.value })} placeholder="e.g. 200" className="w-full" min="1" />
+              <label className="block text-sm text-dark-400 mb-1">Student Rate / hr *</label>
+              <div className="flex gap-2">
+                <input type="number" value={form.student_hourly_rate} onChange={e => setForm({ ...form, student_hourly_rate: e.target.value })} placeholder="e.g. 200" className="flex-1" min="1" />
+                <select value={form.student_currency} onChange={e => setForm({ ...form, student_currency: e.target.value })} className="w-24">
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             </div>
             <div>
-              <label className="block text-sm text-dark-400 mb-1">Teacher Rate / hr (QAR) *</label>
-              <input type="number" value={form.teacher_hourly_rate} onChange={e => setForm({ ...form, teacher_hourly_rate: e.target.value })} placeholder="e.g. 100" className="w-full" min="1" />
+              <label className="block text-sm text-dark-400 mb-1">Teacher Rate / hr *</label>
+              <div className="flex gap-2">
+                <input type="number" value={form.teacher_hourly_rate} onChange={e => setForm({ ...form, teacher_hourly_rate: e.target.value })} placeholder="e.g. 100" className="flex-1" min="1" />
+                <select value={form.teacher_currency} onChange={e => setForm({ ...form, teacher_currency: e.target.value })} className="w-24">
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm text-dark-400 mb-1">Subject</label>
@@ -360,15 +378,20 @@ export default function PrivateClasses() {
             <div className="bg-dark-900/50 rounded-lg p-3 text-sm grid grid-cols-3 gap-4">
               <div>
                 <span className="text-dark-500">Student pays:</span>
-                <span className="ml-2 text-dark-200 font-medium">{formatQAR(computedTotal)}</span>
+                <span className="ml-2 text-dark-200 font-medium">{formatCurrency(computedTotal, form.student_currency)}</span>
               </div>
               <div>
                 <span className="text-dark-500">Teacher gets:</span>
-                <span className="ml-2 text-dark-200 font-medium">{formatQAR(computedTeacherTotal)}</span>
+                <span className="ml-2 text-dark-200 font-medium">{formatCurrency(computedTeacherTotal, form.teacher_currency)}</span>
               </div>
               <div>
                 <span className="text-dark-500">Profit:</span>
-                <span className="ml-2 text-brand-400 font-medium">{formatQAR(computedTotal - computedTeacherTotal)}</span>
+                <span className="ml-2 text-brand-400 font-medium">
+                  {form.student_currency === form.teacher_currency
+                    ? formatCurrency(computedTotal - computedTeacherTotal, form.student_currency)
+                    : `${formatCurrency(computedTotal, form.student_currency)} - ${formatCurrency(computedTeacherTotal, form.teacher_currency)}`
+                  }
+                </span>
               </div>
             </div>
           )}

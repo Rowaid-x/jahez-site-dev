@@ -264,7 +264,10 @@ export default function Teachers() {
                       <span className="text-sm font-medium">{p.name}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-dark-400">{formatQAR(p.teacher_fee)}</span>
+                      <span className="text-xs text-dark-400">
+                        {formatQAR(p.teacher_fee)}
+                        {p.teacher_fee_display && <span className="ml-1 text-dark-600">({p.teacher_fee_display})</span>}
+                      </span>
                       {p.teacher_paid ? (
                         <span className="text-xs text-emerald-400">Paid</span>
                       ) : (

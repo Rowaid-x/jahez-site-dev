@@ -92,7 +92,13 @@ class Project(models.Model):
                                     help_text='Total fee in QAR')
     installment_months = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     payment_start_date = models.DateField()
-    teacher_fee = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    teacher_fee = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,
+                                       help_text='Teacher fee in QAR')
+    teacher_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='QAR')
+    teacher_fee_in_original = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,
+                                                   help_text='Teacher fee in original currency')
+    teacher_exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, default=1.0,
+                                                help_text='Exchange rate: 1 teacher currency = X QAR')
     teacher_paid = models.BooleanField(default=False)
     teacher_paid_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
@@ -109,6 +115,12 @@ class Project(models.Model):
     def original_fee_display(self):
         if self.currency != 'QAR' and self.fee_in_original:
             return f"{float(self.fee_in_original):,.2f} {self.currency}"
+        return None
+
+    @property
+    def teacher_fee_display(self):
+        if self.teacher_currency != 'QAR' and self.teacher_fee_in_original:
+            return f"{float(self.teacher_fee_in_original):,.2f} {self.teacher_currency}"
         return None
 
     @property
@@ -170,9 +182,11 @@ class PrivateClass(models.Model):
     duration = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0.5)],
                                    help_text='Duration in hours (e.g. 1.0, 1.5, 2.0)')
     student_hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0.01)],
-                                              help_text='Rate charged to student per hour (QAR)')
+                                              help_text='Rate charged to student per hour (in student_currency)')
+    student_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='QAR')
     teacher_hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0.01)],
-                                              help_text='Rate paid to teacher per hour (QAR)')
+                                              help_text='Rate paid to teacher per hour (in teacher_currency)')
+    teacher_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='QAR')
     student_payment_status = models.CharField(max_length=20, choices=STUDENT_PAYMENT_CHOICES, default='pending')
     student_paid_date = models.DateField(null=True, blank=True)
     teacher_payment_status = models.CharField(max_length=20, choices=TEACHER_PAYMENT_CHOICES, default='pending')

@@ -46,6 +46,8 @@ export default function ProjectDetail() {
           installment_months: res.data.installment_months,
           payment_start_date: res.data.payment_start_date,
           teacher_fee: res.data.teacher_fee || '',
+          teacher_currency: res.data.teacher_currency || 'QAR',
+          teacher_fee_in_original: res.data.teacher_fee_in_original || '',
           notes: res.data.notes,
         })
       })
@@ -65,6 +67,9 @@ export default function ProjectDetail() {
         total_fee: Number(editForm.total_fee),
         installment_months: Number(editForm.installment_months),
         teacher_fee: editForm.teacher_fee ? Number(editForm.teacher_fee) : null,
+        teacher_currency: editForm.teacher_currency,
+        teacher_fee_in_original: editForm.teacher_currency !== 'QAR' && editForm.teacher_fee_in_original ? Number(editForm.teacher_fee_in_original) : null,
+        teacher_exchange_rate: CURRENCY_RATES[editForm.teacher_currency] || 1,
       })
       toast.success('Project updated')
       setEditModalOpen(false)
@@ -241,7 +246,12 @@ export default function ProjectDetail() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-dark-200 font-medium" dir="auto">{project.teacher_name}</p>
-            <p className="text-sm text-dark-400">Fee: {project.teacher_fee ? formatQAR(project.teacher_fee) : 'Not set'}</p>
+            <p className="text-sm text-dark-400">
+              Fee: {project.teacher_fee ? formatQAR(project.teacher_fee) : 'Not set'}
+              {project.teacher_fee_display && (
+                <span className="ml-1 text-dark-500">({project.teacher_fee_display})</span>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {project.teacher_paid ? (
@@ -332,8 +342,40 @@ export default function ProjectDetail() {
               <input type="number" value={editForm.installment_months || ''} onChange={e => setEditForm({ ...editForm, installment_months: e.target.value })} className="w-full" />
             </div>
             <div>
-              <label className="block text-sm text-dark-400 mb-1">Teacher Fee (QAR)</label>
-              <input type="number" value={editForm.teacher_fee || ''} onChange={e => setEditForm({ ...editForm, teacher_fee: e.target.value })} className="w-full" />
+              <label className="block text-sm text-dark-400 mb-1">Teacher Fee</label>
+              <div className="flex gap-2">
+                <input type="number" value={editForm.teacher_currency === 'QAR' ? (editForm.teacher_fee || '') : (editForm.teacher_fee_in_original || '')} onChange={e => {
+                  const val = e.target.value
+                  if (editForm.teacher_currency === 'QAR') {
+                    setEditForm({ ...editForm, teacher_fee: val, teacher_fee_in_original: '' })
+                  } else {
+                    const rate = CURRENCY_RATES[editForm.teacher_currency] || 1
+                    setEditForm({ ...editForm, teacher_fee_in_original: val, teacher_fee: Math.round(Number(val) * rate) || '' })
+                  }
+                }} className="flex-1" />
+                <select value={editForm.teacher_currency || 'QAR'} onChange={e => {
+                  const cur = e.target.value
+                  const rate = CURRENCY_RATES[cur] || 1
+                  if (cur === 'QAR') {
+                    setEditForm({ ...editForm, teacher_currency: cur, teacher_fee_in_original: '' })
+                  } else {
+                    const orig = editForm.teacher_fee_in_original || editForm.teacher_fee
+                    const qarAmt = orig ? Math.round(Number(orig) * rate) : ''
+                    setEditForm({ ...editForm, teacher_currency: cur, teacher_fee_in_original: orig, teacher_fee: qarAmt })
+                  }
+                }} className="w-24">
+                  <option value="QAR">QAR</option>
+                  <option value="USD">USD</option>
+                  <option value="GBP">GBP</option>
+                  <option value="JOD">JOD</option>
+                  <option value="EGP">EGP</option>
+                </select>
+              </div>
+              {editForm.teacher_currency !== 'QAR' && editForm.teacher_fee_in_original && (
+                <p className="text-xs text-dark-500 mt-1">
+                  = {formatQAR(editForm.teacher_fee)} (rate: 1 {editForm.teacher_currency} = {CURRENCY_RATES[editForm.teacher_currency]} QAR)
+                </p>
+              )}
             </div>
           </div>
           <div>

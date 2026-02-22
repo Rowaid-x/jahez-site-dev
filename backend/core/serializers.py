@@ -43,13 +43,16 @@ class ProjectMinimalSerializer(serializers.ModelSerializer):
     remaining_balance = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
     original_fee_display = serializers.SerializerMethodField()
+    teacher_fee_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
             'id', 'code', 'name', 'status', 'total_fee',
             'currency', 'fee_in_original', 'exchange_rate', 'original_fee_display',
-            'teacher_fee', 'teacher_paid', 'student_name', 'teacher_name',
+            'teacher_fee', 'teacher_currency', 'teacher_fee_in_original',
+            'teacher_exchange_rate', 'teacher_fee_display',
+            'teacher_paid', 'student_name', 'teacher_name',
             'monthly_amount', 'total_paid', 'remaining_balance', 'payment_status',
         ]
 
@@ -67,6 +70,9 @@ class ProjectMinimalSerializer(serializers.ModelSerializer):
 
     def get_original_fee_display(self, obj):
         return obj.original_fee_display
+
+    def get_teacher_fee_display(self, obj):
+        return obj.teacher_fee_display
 
 
 class StudentDetailSerializer(StudentSerializer):
@@ -154,6 +160,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
     remaining_balance = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
     original_fee_display = serializers.SerializerMethodField()
+    teacher_fee_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -162,7 +169,9 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'teacher', 'teacher_name', 'status',
             'currency', 'fee_in_original', 'exchange_rate', 'original_fee_display',
             'total_fee', 'installment_months', 'payment_start_date',
-            'teacher_fee', 'teacher_paid', 'teacher_paid_date',
+            'teacher_fee', 'teacher_currency', 'teacher_fee_in_original',
+            'teacher_exchange_rate', 'teacher_fee_display',
+            'teacher_paid', 'teacher_paid_date',
             'notes', 'created_at',
             'monthly_amount', 'total_paid', 'remaining_balance', 'payment_status',
         ]
@@ -182,6 +191,9 @@ class ProjectListSerializer(serializers.ModelSerializer):
     def get_original_fee_display(self, obj):
         return obj.original_fee_display
 
+    def get_teacher_fee_display(self, obj):
+        return obj.teacher_fee_display
+
 
 class ProjectDetailSerializer(ProjectListSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
@@ -197,7 +209,8 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'student', 'teacher', 'status',
             'currency', 'fee_in_original', 'exchange_rate',
             'total_fee', 'installment_months', 'payment_start_date',
-            'teacher_fee', 'notes',
+            'teacher_fee', 'teacher_currency', 'teacher_fee_in_original',
+            'teacher_exchange_rate', 'notes',
         ]
 
     def validate_code(self, value):
@@ -235,7 +248,8 @@ class PrivateClassListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'student', 'student_name', 'teacher', 'teacher_name',
             'date', 'duration', 'subject',
-            'student_hourly_rate', 'teacher_hourly_rate',
+            'student_hourly_rate', 'student_currency',
+            'teacher_hourly_rate', 'teacher_currency',
             'student_total', 'teacher_total', 'profit',
             'student_payment_status', 'student_paid_date',
             'teacher_payment_status', 'teacher_paid_date',
@@ -257,7 +271,8 @@ class PrivateClassCreateSerializer(serializers.ModelSerializer):
         model = PrivateClass
         fields = [
             'id', 'student', 'teacher', 'date', 'duration', 'subject',
-            'student_hourly_rate', 'teacher_hourly_rate',
+            'student_hourly_rate', 'student_currency',
+            'teacher_hourly_rate', 'teacher_currency',
             'student_payment_status', 'student_paid_date',
             'teacher_payment_status', 'teacher_paid_date',
             'notes',

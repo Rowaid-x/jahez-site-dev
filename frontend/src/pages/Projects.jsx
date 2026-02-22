@@ -24,7 +24,8 @@ export default function Projects() {
     code: '', name: '', student: '', teacher: '',
     currency: 'QAR', fee_in_original: '', total_fee: '',
     installment_months: '', payment_start_date: '',
-    teacher_fee: '', notes: '',
+    teacher_fee: '', teacher_currency: 'QAR', teacher_fee_in_original: '',
+    notes: '',
   })
 
   const fetchProjects = () => {
@@ -60,7 +61,8 @@ export default function Projects() {
       currency: 'QAR', fee_in_original: '', total_fee: '',
       installment_months: '',
       payment_start_date: getDefaultStartDate(),
-      teacher_fee: '', notes: '',
+      teacher_fee: '', teacher_currency: 'QAR', teacher_fee_in_original: '',
+      notes: '',
     })
     setModalOpen(true)
   }
@@ -94,6 +96,9 @@ export default function Projects() {
         total_fee: Number(form.total_fee),
         installment_months: Number(form.installment_months),
         teacher_fee: form.teacher_fee ? Number(form.teacher_fee) : null,
+        teacher_currency: form.teacher_currency,
+        teacher_fee_in_original: form.teacher_currency !== 'QAR' && form.teacher_fee_in_original ? Number(form.teacher_fee_in_original) : null,
+        teacher_exchange_rate: CURRENCY_RATES[form.teacher_currency] || 1,
       }
       await client.post('/projects/', payload)
       toast.success('Project created with installment schedule')
@@ -238,8 +243,40 @@ export default function Projects() {
               <input type="date" value={form.payment_start_date} onChange={e => setForm({ ...form, payment_start_date: e.target.value })} className="w-full" />
             </div>
             <div>
-              <label className="block text-sm text-dark-400 mb-1">Teacher Fee (QAR)</label>
-              <input type="number" value={form.teacher_fee} onChange={e => setForm({ ...form, teacher_fee: e.target.value })} placeholder="Optional" className="w-full" />
+              <label className="block text-sm text-dark-400 mb-1">Teacher Fee</label>
+              <div className="flex gap-2">
+                <input type="number" value={form.teacher_currency === 'QAR' ? form.teacher_fee : form.teacher_fee_in_original} onChange={e => {
+                  if (form.teacher_currency === 'QAR') {
+                    setForm({ ...form, teacher_fee: e.target.value, teacher_fee_in_original: '' })
+                  } else {
+                    const rate = CURRENCY_RATES[form.teacher_currency] || 1
+                    const qarAmt = Math.round(Number(e.target.value) * rate)
+                    setForm({ ...form, teacher_fee_in_original: e.target.value, teacher_fee: qarAmt || '' })
+                  }
+                }} placeholder="Optional" className="flex-1" />
+                <select value={form.teacher_currency} onChange={e => {
+                  const cur = e.target.value
+                  const rate = CURRENCY_RATES[cur] || 1
+                  if (cur === 'QAR') {
+                    setForm({ ...form, teacher_currency: cur, teacher_fee_in_original: '' })
+                  } else {
+                    const orig = form.teacher_fee_in_original || form.teacher_fee
+                    const qarAmt = orig ? Math.round(Number(orig) * rate) : ''
+                    setForm({ ...form, teacher_currency: cur, teacher_fee_in_original: orig, teacher_fee: qarAmt })
+                  }
+                }} className="w-24">
+                  <option value="QAR">QAR</option>
+                  <option value="USD">USD</option>
+                  <option value="GBP">GBP</option>
+                  <option value="JOD">JOD</option>
+                  <option value="EGP">EGP</option>
+                </select>
+              </div>
+              {form.teacher_currency !== 'QAR' && form.teacher_fee_in_original && (
+                <p className="text-xs text-dark-500 mt-1">
+                  = {formatQAR(form.teacher_fee)} (rate: 1 {form.teacher_currency} = {CURRENCY_RATES[form.teacher_currency]} QAR)
+                </p>
+              )}
             </div>
           </div>
           <div>
