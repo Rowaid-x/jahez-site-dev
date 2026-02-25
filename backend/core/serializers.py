@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Teacher, Project, Payment, PrivateClass, ClassPayment, CURRENCY_CHOICES, CURRENCY_RATES
+from .models import Student, Teacher, Project, Payment, PrivateClass, ClassPayment, ActivityLog, CURRENCY_CHOICES, CURRENCY_RATES
 from django.db.models import Sum, Count, Q
 from decimal import Decimal
 
@@ -394,3 +394,14 @@ class ClassPaymentCreateSerializer(serializers.ModelSerializer):
             rate = CURRENCY_RATES.get(currency, 1.0)
             data['amount_qar'] = round(float(data['amount']) * rate, 2)
         return data
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True, default=None)
+
+    class Meta:
+        model = ActivityLog
+        fields = [
+            'id', 'action', 'entity_type', 'entity_id',
+            'description', 'username', 'created_at',
+        ]

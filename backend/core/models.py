@@ -253,6 +253,30 @@ class ClassPayment(models.Model):
         super().save(*args, **kwargs)
 
 
+class ActivityLog(models.Model):
+    ACTION_CHOICES = [
+        ('created', 'Created'),
+        ('updated', 'Updated'),
+        ('deleted', 'Deleted'),
+        ('payment', 'Payment'),
+        ('status_change', 'Status Change'),
+    ]
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='activity_logs', null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    entity_type = models.CharField(max_length=50, help_text='e.g. Student, Project, Payment')
+    entity_id = models.PositiveIntegerField(null=True, blank=True)
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.action}] {self.entity_type} — {self.description[:60]}"
+
+
 class Payment(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),

@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import date
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Student, Teacher, Project, Payment, PrivateClass, ClassPayment, CURRENCY_CHOICES, CURRENCY_RATES
+from .models import Student, Teacher, Project, Payment, PrivateClass, ClassPayment, ActivityLog, CURRENCY_CHOICES, CURRENCY_RATES
 from .org_utils import get_user_org, OrgQuerySetMixin, OrgPaymentQuerySetMixin
 from .serializers import (
     StudentSerializer, StudentDetailSerializer, StudentCreateSerializer,
@@ -17,6 +17,7 @@ from .serializers import (
     RecordPaymentSerializer, PreviewPaymentSerializer,
     PrivateClassListSerializer, PrivateClassCreateSerializer,
     ClassPaymentListSerializer, ClassPaymentCreateSerializer,
+    ActivityLogSerializer,
 )
 from .payment_logic import (
     generate_installments, regenerate_installments,
@@ -283,6 +284,59 @@ def dashboard(request):
         for cp in recent_class_payments
     ]
 
+    # --- Activity Log (recent 30) ---
+    recent_logs = ActivityLog.objects.filter(organization=org).select_related('user')[:30]
+    activity_log_data = ActivityLogSerializer(recent_logs, many=True).data
+
+    # --- Monthly Cash Flow (current month) ---
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    # Money IN: project payments received this month
+    month_project_in = float(
+        Payment.objects.filter(
+            project__organization=org,
+            paid_date__gte=month_start,
+            paid_date__lte=today,
+            actual_amount__isnull=False,
+        ).aggregate(total=Sum('actual_amount'))['total'] or 0
+    )
+
+    # Money IN: class payments received this month
+    month_class_in = float(
+        ClassPayment.objects.filter(
+            organization=org,
+            paid_date__gte=month_start,
+            paid_date__lte=today,
+        ).aggregate(total=Sum('amount_qar'))['total'] or 0
+    )
+
+    # Money OUT: teacher project payouts this month (teacher_paid_date in current month)
+    month_teacher_project_out = float(
+        Project.objects.filter(
+            organization=org,
+            teacher_paid=True,
+            teacher_paid_date__gte=month_start,
+            teacher_paid_date__lte=today,
+            teacher_fee__isnull=False,
+        ).aggregate(total=Sum('teacher_fee'))['total'] or 0
+    )
+
+    # Money OUT: teacher class payouts this month (classes marked teacher paid this month)
+    month_teacher_class_out = 0
+    teacher_paid_classes = PrivateClass.objects.filter(
+        organization=org,
+        teacher_payment_status='paid',
+        teacher_paid_date__gte=month_start,
+        teacher_paid_date__lte=today,
+    )
+    for pc in teacher_paid_classes:
+        month_teacher_class_out += pc.teacher_total_qar
+
+    total_money_in = round(month_project_in + month_class_in, 2)
+    total_money_out = round(month_teacher_project_out + month_teacher_class_out, 2)
+    net_savings = round(total_money_in - total_money_out, 2)
+
     return Response({
         'total_students': total_students,
         'total_teachers': total_teachers,
@@ -306,6 +360,19 @@ def dashboard(request):
         'classes_teacher_unpaid': classes_teacher_unpaid,
         'monthly_class_collections': monthly_class_collections,
         'recent_class_payments': recent_class_data,
+        # Activity log
+        'activity_log': activity_log_data,
+        # Monthly cash flow
+        'cash_flow': {
+            'month_label': today.strftime('%B %Y'),
+            'money_in': total_money_in,
+            'money_in_projects': month_project_in,
+            'money_in_classes': month_class_in,
+            'money_out': total_money_out,
+            'money_out_projects': month_teacher_project_out,
+            'money_out_classes': round(month_teacher_class_out, 2),
+            'net_savings': net_savings,
+        },
     })
 
 
