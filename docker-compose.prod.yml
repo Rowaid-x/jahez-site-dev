@@ -29,13 +29,13 @@ services:
     environment:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DJANGO_DEBUG=False
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-72.62.74.227,localhost,127.0.0.1}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-dev.jahez-qa.site,jahez-qa.site,72.62.74.227,localhost,127.0.0.1}
       - DB_NAME=${DB_NAME:-jahez_db}
       - DB_USER=${DB_USER:-jahez_user}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=db
       - DB_PORT=5432
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://72.62.74.227}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://dev.jahez-qa.site,https://jahez-qa.site,http://72.62.74.227}
     depends_on:
       db:
         condition: service_healthy
@@ -61,6 +61,8 @@ services:
       - ./nginx/landing:/var/www/landing:ro
       - static_files:/app/staticfiles
       - frontend_build:/usr/share/nginx/html
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
     depends_on:
       - web
       - frontend
@@ -68,10 +70,21 @@ services:
       - backend_net
       - frontend_net
 
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    networks:
+      - frontend_net
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
 volumes:
   postgres_data:
   static_files:
   frontend_build:
+  certbot_www:
+  certbot_conf:
 
 networks:
   backend_net:
