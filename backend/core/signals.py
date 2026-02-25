@@ -37,14 +37,17 @@ def _get_org_and_user(instance):
 
 
 def _log(org, user, action, entity_type, entity_id, description):
-    ActivityLog.objects.create(
-        organization=org,
-        user=user,
-        action=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        description=description,
-    )
+    try:
+        ActivityLog.objects.create(
+            organization=org,
+            user=user,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            description=description,
+        )
+    except Exception:
+        pass
 
 
 # ---- Student ----
